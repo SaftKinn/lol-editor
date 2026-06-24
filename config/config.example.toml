@@ -1,0 +1,32 @@
+# LoL Editor configuration — copy to "config/config.toml" and adjust.
+# Paths and settings are config, never hardcoded in source.
+
+[paths]
+input_dir = "input"     # raw gameplay videos
+music_dir = "music"     # royalty-free music tracks
+output_dir = "output"   # finished videos
+assets_dir = "assets"   # optional intro.mp4 / outro.mp4 / logo.png
+
+[audio]
+# Background music level under the gameplay (0..1). 0.15-0.20 sits the music
+# clearly behind the game audio.
+music_volume = 0.18
+# Auto-lower the music when game audio is loud (kills, pings, fights), so the
+# action always sits on top. Uses FFmpeg sidechain compression.
+duck_music = true
+# Normalize the final mix to YouTube's reference loudness (LUFS). -14 is standard.
+target_loudness = -14
+
+[video]
+# Re-encode settings. Leave resolution = "" and fps = 0 to KEEP the source video
+# untouched (the video stream is copied, not re-encoded — lossless and much faster;
+# only the audio is rebuilt). Set them to force a specific size/framerate.
+resolution = ""         # "" = keep source; e.g. "1920x1080"
+fps = 0                 # 0 = keep source; e.g. 60
+crf = 18                # quality if re-encoding (lower = better; 18 ≈ visually lossless)
+preset = "medium"       # x264 speed/quality tradeoff
+
+[intro_outro]
+# Optional. File names are looked up in assets_dir. Leave "" to skip.
+intro = ""              # e.g. "intro.mp4"
+outro = ""              # e.g. "outro.mp4"

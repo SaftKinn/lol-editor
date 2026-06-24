@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Real config + secrets (only the *.example files are tracked)
+config/config.toml
+.env
+
+# Bulk media — raw clips, music, finished renders (large / often licensed)
+input/*
+music/*
+output/*
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.mp3
+*.wav
+*.m4a
+*.flac
+
+# keep the empty-folder placeholders
+!**/.gitkeep
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
