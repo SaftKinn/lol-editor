@@ -78,14 +78,32 @@ fps = 0                 # 0 = keep source; e.g. 60
 crf = 18                # quality if re-encoding (lower = better; 18 ≈ visually lossless)
 preset = "medium"       # x264 speed/quality tradeoff
 
+[assets]
+# Part 2: code-generated branding cards. `python -m editor.assets` writes intro.mp4,
+# outro.mp4 and a placeholder logo.png into assets_dir, so the branding stage (below)
+# actually has assets to run with. This is the "Hybrid" path (ADR 0011): you drop a
+# real logo.png in assets/ later and re-run — the placeholder is only made when no
+# logo exists yet, and intro/outro are rebuilt AROUND whatever logo.png is present.
+channel_name = "Rift Carnage"               # the channel brand (audience-facing English)
+tagline = "League of Legends Highlights"    # small line under the name on the cards
+resolution = "1920x1080"   # canvas the intro/outro are rendered at, "width x height"
+fps = 60
+bg_color = "0x0A0A12"      # near-black card background (FFmpeg 0xRRGGBB)
+accent_color = "0xC8302C"  # brand accent — a blood red for "Carnage" — used for the name
+text_color = "white"       # secondary text (tagline / "thanks for watching")
+font = "C:/Windows/Fonts/impact.ttf"   # display font for the big channel name
+intro_seconds = 2.0        # keep the intro SHORT — long intros lose Shorts viewers fast
+outro_seconds = 5.0        # long enough to read the call-to-action
+make_logo_placeholder = true   # generate a text logo.png until you drop in a real one
+
 [branding]
 # Stage 2: prepend an intro, append an outro, overlay a corner logo throughout.
 # All optional and config-driven — file names are looked up in assets_dir; leave
 # "" to skip that piece. Branding re-encodes (concat + overlay), using the [video]
-# encoder settings below.
-intro = ""              # e.g. "intro.mp4"  (prepended)
-outro = ""              # e.g. "outro.mp4"  (appended)
-logo = ""               # e.g. "logo.png"   (overlaid the whole time; "" = no logo)
+# encoder settings below. These default to the files `python -m editor.assets` writes.
+intro = "intro.mp4"     # prepended  ("" to skip)
+outro = "outro.mp4"     # appended   ("" to skip)
+logo = "logo.png"       # overlaid the whole time ("" = no logo)
 logo_corner = "top-right"   # top-left | top-right | bottom-left | bottom-right
 logo_margin = 24        # pixels from the frame edges
 logo_width = 160        # logo is scaled to this width in px (height keeps aspect)

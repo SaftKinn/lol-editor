@@ -72,6 +72,12 @@ python -m editor.edit my_game.mp4 my_track.mp3      # same thing, bare names
 # pool matching the clip's input sub-folder (input/hype/ -> music/hype/).
 python -m editor.edit input/hype/my_game.mp4
 
+# Brand assets (Part 2): generate intro.mp4 + outro.mp4 + a placeholder logo.png into
+# assets/ from [assets] in config (channel name, colors, font). Re-runnable: it only
+# makes the placeholder logo when none exists, so dropping in a real logo.png and
+# re-running rebuilds the intro/outro AROUND your logo (the "Hybrid" path, ADR 0011).
+python -m editor.assets
+
 # Branding (Stage 2 cont.): intro + outro + corner logo onto an edited video.
 # Reads intro/outro/logo from [branding] in config; assets live in assets/.
 python -m editor.branding output/my_game_edited.mp4
@@ -134,6 +140,19 @@ meant to run standalone.
     triggers a `scale`/`fps` filter and an `libx264` re-encode. The output is always
     `output/<video-stem>_edited.mp4` with `+faststart` and `-shortest`.
 
+- **`editor/assets.py`** — Part 2 brand-asset generator (the code half of the "Hybrid"
+  decision, ADR 0011). `python -m editor.assets` writes `intro.mp4`, `outro.mp4` and a
+  placeholder `logo.png` into `assets/` from `[assets]` config (channel name, tagline,
+  colors, font, durations). Cards are built like the `meta.py` thumbnail — an FFmpeg `color`
+  canvas + stacked `drawtext` (text via temp `textfile=` to dodge escaping) + the logo
+  overlaid on top + fade in/out. Both cards are **silent** video on purpose (branding injects
+  matching silence on concat). Re-runnable & safe: the placeholder logo is generated **only
+  when no `logo.png` exists**, so a real logo dropped in later is never overwritten and the
+  cards rebuild around it. **Transparency gotcha:** this FFmpeg build ignores the `black@0.0`
+  alpha suffix on the `color` source and `format=rgba` fills alpha opaque, so the placeholder
+  logo forces a transparent background with `colorchannelmixer=aa=0` *before* `drawtext`
+  (glyphs get full alpha back) — without it the corner logo is an opaque black box over
+  gameplay. Reuses `meta._ff_escape_path` for the Windows drive-colon escaping.
 - **`editor/branding.py`** — Stage 2 branding. Joins `intro + main + outro` with the FFmpeg
   **concat filter** (each clip normalized: scale+pad to a common canvas, fixed fps, 48 kHz stereo)
   rather than the stream-copy demuxer, so arbitrary intro/outro just work (ADR 0008). A clip with no

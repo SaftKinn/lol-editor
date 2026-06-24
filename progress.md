@@ -4,14 +4,32 @@ Living status document. A phase is done only when its **verification gate** is m
 is recorded here.
 
 ## Current focus
-**All phases complete (0–7).** Phase 5 (discovery/LLM) is now built and verified, so the whole
-pipeline runs end-to-end: edit → (branding) → Shorts → montage → batch, plus per-video English
-metadata + a thumbnail. `editor/meta.py` calls the Claude API with the **standard library**
-(`urllib`, no SDK — keeps the project dependency-free) and structured-output JSON; model is
-config-driven (`claude-sonnet-4-6` default). The next work is **Part 2** (full-game support, AI
-content-understanding, upload automation, brand assets) — see Open questions.
+**Part 1 complete (phases 0–7); Part 2 started — first rock done: brand assets.** The channel
+now has a name — **Rift Carnage** (ADR 0011) — and `editor/assets.py` generates `intro.mp4` /
+`outro.mp4` / a placeholder `logo.png`, so the branding stage (Phase 3) is finally runnable
+end-to-end with real assets. Chosen approach is **Hybrid**: the owner will drop in a real logo
+later (the brand's face), code automates the repetitive cards around it. Remaining Part 2 rocks:
+content-understanding (Whisper), upload automation, full-game support.
 
-## Last session (Phase 5 — Discovery / first LLM stage)
+## Last session (Part 2 — Brand assets: name + generator)
+- Owner picked the channel name **Rift Carnage** (general LoL highlights, not Darius-only, since
+  ARAM is all-random / multi-champ) and the **Hybrid** asset approach (owner sources a real logo,
+  code automates intro/outro). Saved as a `channel-name` memory + ADR 0011.
+- Added `editor/assets.py` + an `[assets]` config section (channel name, tagline, colors, font,
+  durations). `python -m editor.assets` writes `intro.mp4` (2s) + `outro.mp4` (5s) + a placeholder
+  `logo.png` into `assets/`. Cards = FFmpeg `color` canvas + stacked `drawtext` (temp `textfile=`)
+  + logo overlay + fade in/out, silent video. Re-runnable: the placeholder logo is made ONLY when
+  none exists, so a real logo dropped in later is preserved and the cards rebuild around it. Wired
+  `[branding]` defaults to `intro.mp4`/`outro.mp4`/`logo.png`.
+- **Bug found & fixed during verification (VERIFY EVIDENCE):** the placeholder logo first rendered
+  with an opaque black background — proven with `alphaextract,signalstats` (alpha YAVG=255). This
+  FFmpeg build ignores the `color` source's `@0.0` alpha and `format=rgba` fills it opaque; fix is
+  `colorchannelmixer=aa=0` BEFORE `drawtext` (glyphs keep full alpha → YAVG dropped to ~67).
+- Verified end-to-end: regenerated assets, then branded the existing 64s master → **71.0s output**
+  (2s intro + 64s main + 5s outro) @ 1280x720, with the red "Rift Carnage" corner logo visible over
+  gameplay and **no black box**, HUD/minimap uncropped. Test branded output cleaned up; assets kept.
+
+## Earlier session (Phase 5 — Discovery / first LLM stage)
 - Added `editor/meta.py`: stdlib `urllib` Claude client (`call_claude`, structured `output_config`
   JSON), English metadata for two surfaces (youtube_long + youtube_short) + a deterministic FFmpeg
   thumbnail (frame grab at `[thumbnail].frame_at`, scaled 1280x720, LLM `thumbnail_text` burned in
@@ -90,19 +108,21 @@ content-understanding, upload automation, brand assets) — see Open questions.
 - Wrote the doc set (this file, CLAUDE.md, architecture.md, roadmap.md, ADRs 0001–0006).
 
 ## Next concrete step
-Part 1 (MVP) is done. Pick the first **Part 2** rock. Strongest candidates, in rough value order:
-1. **Real channel assets** — pick a brand name, then design `assets/intro.mp4` / `outro.mp4` /
-   `logo.png` so branding (Phase 3, built+verified) actually runs.
-2. **Content understanding** — Whisper announcer detection (Pentakill/Ace/…) for auto-highlights +
-   auto-tags, then a vision LLM on sampled frames to sharpen metadata/thumbnails (ADR 0006).
-3. **Upload automation** — YouTube API upload/scheduling (owner uploads manually for now).
+Brand assets exist now (rock #1 done). Owner's half of the Hybrid is still open: **drop a real
+`logo.png` into `assets/` and re-run `python -m editor.assets`** to rebuild the cards around it.
+Then pick the next Part 2 rock:
+1. **Content understanding** — Whisper announcer detection (Pentakill/Ace/…) for auto-highlights +
+   auto-tags, then a vision LLM on sampled frames to sharpen metadata/thumbnails (ADR 0006). Note:
+   Whisper breaks the zero-dependency rule — decide how to handle that (separate optional stage?).
+2. **Upload automation** — YouTube API upload/scheduling (owner uploads manually for now).
+3. **Full-game support** — long-form from full recordings, not just Medal clips.
 Also worth a quick pass: confirm metadata feel on a real batch in `input/hype/` once clips are
 dropped in (so far Phase 5 verified on a single master).
 
 ## Open questions
-- **Channel name / brand** — none yet; using working codename **LoL Editor**. Needed before
-  designing intro/outro/logo. **Now the one blocker on Phase 3 real use:** `editor/branding.py` is
-  built and verified, but needs real `assets/intro.mp4` / `outro.mp4` / `logo.png`.
+- **Channel name / brand** — DECIDED: **Rift Carnage** (ADR 0011). Intro/outro + a placeholder logo
+  are generated by `editor/assets.py`; branding now runs end-to-end. Remaining: owner supplies a
+  real `logo.png` (Hybrid), and optionally a royalty-free audio sting for the silent intro/outro.
 - **Preset assignment** — implemented by input sub-folder (`input/hype/`, `input/funny/`); within a
   pool, tracks are chosen deterministically per clip (ADR 0007). Confirm the feel in real batch use.
 - **AI content-understanding scope** — when to add it and how much (cost vs. value at daily
@@ -128,6 +148,8 @@ dropped in (so far Phase 5 verified on a single master).
 - **ADR 0009** — Montage lays one ducked music bed (picked by preset) for consistent audio.
 - **ADR 0010** — Discovery via stdlib `urllib` LLM client; preset-driven metadata (no transcript
   yet); thumbnail = deterministic FFmpeg frame + LLM overlay text.
+- **ADR 0011** — Channel name "Rift Carnage"; Hybrid brand assets (owner sources real logo, code
+  generates intro/outro cards around it via `editor/assets.py`).
 
 ### Phase → ADR map
 - Phase 0–1 (setup / core edit): ADR 0001
@@ -136,4 +158,5 @@ dropped in (so far Phase 5 verified on a single master).
 - Phase 4 (Shorts): ADR 0002, 0005
 - Phase 5 (discovery): ADR 0001, 0003, 0010
 - Phase 6–7 (montage / batch): ADR 0002, 0009
+- Part 2 (brand assets): ADR 0011
 - Part 2 (full-game / AI understanding): ADR 0006
