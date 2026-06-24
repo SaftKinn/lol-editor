@@ -182,7 +182,9 @@ def build_assets() -> dict:
     )
 
     outro = assets_dir / str(branding.get("outro", "outro.mp4") or "outro.mp4")
-    print(f"Rendering outro -> {outro.name}  ({cfg['outro_seconds']}s)")
+    logo_in_outro = bool(cfg.get("logo_in_outro", True))
+    print(f"Rendering outro -> {outro.name}  ({cfg['outro_seconds']}s)"
+          + ("" if logo_in_outro else "  (no logo)"))
     _render_card(
         outro,
         [
@@ -190,7 +192,7 @@ def build_assets() -> dict:
             (name, h // 8, cfg["accent_color"], "(h-text_h)/2-30"),
             ("Subscribe for more", h // 18, cfg["accent_color"], "(h-text_h)/2+110"),
         ],
-        float(cfg["outro_seconds"]), cfg, logo, video_cfg,
+        float(cfg["outro_seconds"]), cfg, logo if logo_in_outro else None, video_cfg,
     )
 
     return {"intro": intro, "outro": outro, "logo": logo}
