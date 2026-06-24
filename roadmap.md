@@ -72,7 +72,12 @@ ability bar and minimap fully visible (nothing cropped), top/bottom filled with 
 **Goal:** the parts that drive click-through and reach (the monetization goal).
 - LLM writes an English title + tags + description per video; a thumbnail from a frame + text.
 **Verify:** for one clip, `output/<name>/` has the video plus English metadata + a thumbnail.
-`VERIFY EVIDENCE:`
+`VERIFY EVIDENCE:` MET (2026-06-24) — `editor/meta.py` added (stdlib `urllib` Claude client,
+structured-output JSON, ADR 0010). Ran on a real 64s 1280x720 master with `claude-sonnet-4-6`:
+wrote `_metadata.md` + `_metadata.json` (on-brand English Darius/ARAM title, 15 tags, Shorts
+hashtags) and a 1280x720 `_thumb.png` — a frame grabbed at 50% (landed on a QUADRA KILL) with
+the LLM's bold overlay text ("NOBODY WAS SAFE") burned in via drawtext. Wired into
+`editor/pipeline.py` (per clip after Shorts; missing API key = skip, not fail).
 
 ### Phase 6 — Montage (long-form)
 **Goal:** stitch several clips into one longer highlight video (the higher-CPM format).

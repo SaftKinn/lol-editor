@@ -3,11 +3,11 @@
 This is the daily-volume engine. It doesn't add new video logic — it chains the stages
 that already exist, per clip:
 
-    edit  ->  (branding, if assets exist)  ->  Shorts
+    edit  ->  (branding, if assets exist)  ->  Shorts  ->  metadata (Stage 5, LLM)
 
-Metadata (Stage 5, the LLM) is not built yet, so it's reported as pending rather than run.
-Branding is skipped automatically while no intro/outro/logo assets exist. One bad clip is
-reported and skipped without killing the rest of the batch.
+Branding is skipped automatically while no intro/outro/logo assets exist; metadata is
+skipped (not failed) when no Claude API key is configured. One bad clip is reported and
+skipped without killing the rest of the batch.
 
 Run it directly:
     python -m editor.pipeline input/hype/          # every clip in the folder
@@ -22,11 +22,14 @@ from editor.edit import edit
 from editor.branding import brand
 from editor.shorts import shorts
 from editor.montage import montage, collect_clips
+from editor.meta import generate_metadata
+from editor.presets import detect_preset
 
 
-def process_clip(clip: Path, make_shorts: bool) -> dict:
-    """Run one clip through edit -> (branding) -> Shorts. Returns an outcome dict."""
-    out = {"clip": clip.name, "master": None, "branded": False, "short": None}
+def process_clip(clip: Path, make_shorts: bool, make_metadata: bool) -> dict:
+    """Run one clip through edit -> (branding) -> Shorts -> metadata. Outcome dict."""
+    out = {"clip": clip.name, "master": None, "branded": False,
+           "short": None, "metadata": None}
 
     master = edit(str(clip))          # auto-picks music by preset
     out["master"] = master.name
@@ -42,6 +45,17 @@ def process_clip(clip: Path, make_shorts: bool) -> dict:
     if make_shorts:
         out["short"] = shorts(str(master)).name
 
+    # Metadata (Stage 5, LLM). Pass the original clip's preset through (the master now
+    # lives in output/, where the folder no longer reveals it). A missing API key
+    # raises SystemExit — treat that as "skip metadata", like branding, not a failure.
+    if make_metadata:
+        config = load_config()
+        try:
+            md_path, _thumb = generate_metadata(str(master), preset=detect_preset(clip, config))
+            out["metadata"] = md_path.name
+        except SystemExit as e:
+            print(f"  (metadata skipped: {e})")
+
     return out
 
 
@@ -50,16 +64,18 @@ def run_batch(args: list[str]) -> list[dict]:
     config = load_config()
     batch_cfg = config.get("batch", {})
     make_shorts = bool(batch_cfg.get("make_shorts", True))
+    make_metadata = bool(batch_cfg.get("make_metadata", True))
 
     clips, name = collect_clips(args)
     print(f"Batch: {len(clips)} clip(s) from '{name}'  "
-          f"(shorts={'on' if make_shorts else 'off'})\n")
+          f"(shorts={'on' if make_shorts else 'off'}, "
+          f"metadata={'on' if make_metadata else 'off'})\n")
 
     results = []
     for i, clip in enumerate(clips, 1):
         print(f"[{i}/{len(clips)}] {clip.name}")
         try:
-            results.append(process_clip(clip, make_shorts))
+            results.append(process_clip(clip, make_shorts, make_metadata))
         except (Exception, SystemExit) as e:   # noqa: BLE001 — isolate one clip's failure
             print(f"  ! FAILED: {e}")
             results.append({"clip": clip.name, "error": str(e)})
@@ -80,8 +96,8 @@ def run_batch(args: list[str]) -> list[dict]:
         else:
             short = r["short"] or "(no short)"
             brand_tag = " +brand" if r["branded"] else ""
-            print(f"  {r['clip']}: {r['master']}{brand_tag}  |  {short}")
-    print("  metadata (title/tags/description/thumbnail): pending Phase 5 (LLM).")
+            meta_tag = " +meta" if r["metadata"] else ""
+            print(f"  {r['clip']}: {r['master']}{brand_tag}  |  {short}{meta_tag}")
     return results
 
 

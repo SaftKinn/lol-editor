@@ -7,6 +7,29 @@ music_dir = "music"     # royalty-free music tracks
 output_dir = "output"   # finished videos
 assets_dir = "assets"   # optional intro.mp4 / outro.mp4 / logo.png
 
+[llm]
+# Stage 5 (discovery): the ONLY paid/cloud part of the pipeline (ADR 0001). The LLM
+# writes English metadata (titles/tags/descriptions) + the thumbnail text. All math,
+# timings and frame grabs stay in code — the LLM never touches them.
+model = "claude-sonnet-4-6"   # cheap default; "claude-opus-4-8" for quality runs
+max_tokens = 2000             # plenty for two surfaces of metadata
+# The API key is read from this environment variable (kept out of git this way).
+api_key_env = "ANTHROPIC_API_KEY"
+# Optional: path to a KEY=VALUE ".env" file to read the key from when the env var is
+# NOT already set. Lets you reuse a key stored elsewhere without copying it into git.
+# e.g. env_file = "C:/Users/you/Desktop/SocialMedia Projekt/.env"
+env_file = ""
+
+[thumbnail]
+# Stage 5: a thumbnail = a still grabbed from the master video (deterministic, FFmpeg)
+# + bold overlay text written by the LLM. The still is taken at this fraction of the
+# clip's duration, then scaled to a standard 1280x720 YouTube thumbnail.
+frame_at = 0.5            # 0..1 position in the clip to grab the still from
+font = "C:/Windows/Fonts/arialbd.ttf"   # a TrueType font file on disk (Arial Bold)
+font_size = 96
+font_color = "white"
+box_color = "black@0.5"   # semi-transparent box behind the text for legibility
+
 [presets]
 # A preset = an input sub-folder + a matching music pool. Drop a clip in
 # input/<preset>/ and it is scored from music/<preset>/ automatically. List the
@@ -19,6 +42,7 @@ names = ["hype", "funny"]
 # Stage 6: process every clip in a preset folder in one run (the daily-volume engine).
 # Each clip -> a 16:9 master (edit, + branding if assets exist) and optionally a Short.
 make_shorts = true     # also cut a 9:16 Short from each master
+make_metadata = true   # also write English metadata + a thumbnail (Stage 5, needs an API key)
 montage = false        # after processing, also stitch the folder's clips into one montage
 
 [montage]

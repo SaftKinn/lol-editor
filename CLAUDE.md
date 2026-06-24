@@ -82,7 +82,12 @@ python -m editor.shorts output/my_game_edited.mp4
 # Montage (Stage 4): stitch a folder (or a list) of clips into one long-form video.
 python -m editor.montage input/hype/
 
-# Batch (Stage 6): run every clip in a folder through edit -> (brand) -> Shorts.
+# Metadata + thumbnail (Stage 5, the only LLM stage): English title/tags/description
+# + a thumbnail (frame grab + bold overlay text) for one finished video.
+# Needs a Claude API key — set ANTHROPIC_API_KEY (or [llm].env_file in config).
+python -m editor.meta output/my_game_edited.mp4
+
+# Batch (Stage 6): run every clip in a folder through edit -> (brand) -> Shorts -> metadata.
 python -m editor.pipeline input/hype/
 
 # Sanity-check the toolchain / config
@@ -97,8 +102,9 @@ If you add automated tests later, document the command here.
 
 ## How the code works (code-level architecture)
 
-`editor/` is a plain Python package run with `python -m editor.<module>`. Eight modules exist today
-(only the Stage 5 metadata/LLM stage is missing); each is one stage and is meant to run standalone.
+`editor/` is a plain Python package run with `python -m editor.<module>`. All stage modules now
+exist (the deterministic FFmpeg stages plus the one LLM stage, `meta.py`); each is one stage and is
+meant to run standalone.
 
 - **`editor/config.py`** — `ROOT` is computed as the folder above `editor/`, so every path is
   resolved relative to the repo regardless of the current working directory. `load_config()` reads
@@ -149,11 +155,22 @@ If you add automated tests later, document the command here.
   concatenated game audio `[cg]` + the looped music input. `[montage].music_bed = false` keeps each
   clip's own audio. Silent clips get `anullsrc` injected so the bed plays through.
 
+- **`editor/meta.py`** — Stage 5, the **only LLM stage** and the only cloud/paid part (ADR 0001,
+  0010). Calls the Claude API directly over HTTPS with the **standard library** (`urllib`, no SDK —
+  keeps the project dependency-free) using structured outputs (`output_config.format` + a JSON
+  schema) so the reply is guaranteed-valid JSON. Model + key are config-driven (`[llm]`: `model`
+  default `claude-sonnet-4-6`; key read from env var `api_key_env`, with an optional `env_file`
+  escape hatch). It has no transcript/vision, so it writes preset-driven English metadata
+  (youtube_long + youtube_short) from the clip's preset + name + duration. The **thumbnail keeps the
+  deterministic/creative split**: code grabs a still at `[thumbnail].frame_at` (scaled 1280x720) and
+  burns the LLM's short `thumbnail_text` on with `drawtext`; the LLM only writes the wording. Outputs
+  flat siblings: `<name>_metadata.md`, `<name>_metadata.json`, `<name>_thumb.png`. Gotcha baked into
+  `_ff_escape_path`: the Windows drive colon must be `\\:` (double backslash) for `drawtext`.
 - **`editor/pipeline.py`** — Stage 6 batch orchestrator. Adds no video logic: it imports and calls
-  `edit` → `brand` → `shorts` per clip and reuses `montage.collect_clips` to gather a folder.
-  Branding's "nothing configured" `SystemExit` is caught = skip; per-clip failures are isolated so
-  one bad clip doesn't kill the batch; metadata is reported as pending Stage 5. `[batch]` toggles
-  `make_shorts` and an optional end-of-run `montage`.
+  `edit` → `brand` → `shorts` → `meta` per clip and reuses `montage.collect_clips` to gather a folder.
+  Branding's "nothing configured" `SystemExit` is caught = skip; a missing API key makes `meta`
+  `SystemExit` = skip too; per-clip failures are isolated so one bad clip doesn't kill the batch.
+  `[batch]` toggles `make_shorts`, `make_metadata`, and an optional end-of-run `montage`.
 
 Note the reuse seam: `edit.build_audio_filter(..., game, music, out)` is the single place audio
 ducking/loudness lives — call it with labels rather than reimplementing the mix in a new stage. The
@@ -162,6 +179,8 @@ than grow their own folder-walking loop.
 
 New stages should: load config, resolve inputs with `_resolve`, build a filtergraph string, run it
 through `ffmpeg.run`, write to `output/`, and expose a `main()` so `python -m editor.<stage>` works.
+(The LLM stage `meta.py` is the exception that proves the rule: deterministic FFmpeg + config +
+`_resolve` + `main()`, but its creative text comes from `call_claude` instead of a filtergraph.)
 
 ## The pipeline (one line)
 

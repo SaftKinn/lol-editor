@@ -4,13 +4,29 @@ Living status document. A phase is done only when its **verification gate** is m
 is recorded here.
 
 ## Current focus
-**Phase 7 — Batch orchestrator complete and verified.** `editor/pipeline.py` chains the existing
-stages per clip over a whole preset folder: edit → (branding, auto-skipped when no assets) → Shorts,
-with an optional batch montage. Reuses `montage.collect_clips`. Verified on a 2-clip folder (master +
-Short each, one command). **Only Phase 5 (discovery/LLM) remains** — blocked on the owner's LLM API
-key. The deterministic FFmpeg pipeline (Phases 0–4, 6, 7) is now end-to-end.
+**All phases complete (0–7).** Phase 5 (discovery/LLM) is now built and verified, so the whole
+pipeline runs end-to-end: edit → (branding) → Shorts → montage → batch, plus per-video English
+metadata + a thumbnail. `editor/meta.py` calls the Claude API with the **standard library**
+(`urllib`, no SDK — keeps the project dependency-free) and structured-output JSON; model is
+config-driven (`claude-sonnet-4-6` default). The next work is **Part 2** (full-game support, AI
+content-understanding, upload automation, brand assets) — see Open questions.
 
-## Last session (Phase 7 — Batch orchestrator)
+## Last session (Phase 5 — Discovery / first LLM stage)
+- Added `editor/meta.py`: stdlib `urllib` Claude client (`call_claude`, structured `output_config`
+  JSON), English metadata for two surfaces (youtube_long + youtube_short) + a deterministic FFmpeg
+  thumbnail (frame grab at `[thumbnail].frame_at`, scaled 1280x720, LLM `thumbnail_text` burned in
+  via `drawtext`). Added `[llm]` (model / key-from-env / optional env_file) and `[thumbnail]` config.
+  Wired into `editor/pipeline.py` (`make_metadata`, per clip after Shorts; missing key = skip).
+- Decisions (ADR 0010): stdlib over the `anthropic` SDK to honor the zero-dep rule; metadata from
+  preset + filename + duration (no transcript/vision yet — that's Part 2); thumbnail = code frame +
+  LLM text; key from env var (`ANTHROPIC_API_KEY`), reusable from another project's `.env`.
+- Verified end-to-end with the owner's real key (stored in `…\SocialMedia Projekt\.env`) on the
+  existing 64s 1280x720 master: on-brand English Darius/ARAM metadata (.md + .json) and a 1280x720
+  thumbnail with bold overlay text. One FFmpeg-on-Windows fix: drive colon in `drawtext` paths must
+  be escaped as `\\:` (double backslash) — baked into `_ff_escape_path`.
+- Owner preference noted: conversation/questions in **German** (code/docs/titles stay English).
+
+## Earlier session (Phase 7 — Batch orchestrator)
 - Added `editor/pipeline.py` (`run_batch`, `process_clip`) + a `[batch]` config (`make_shorts`,
   `montage`). It adds no new video logic — it calls `edit` → `brand` → `shorts` per clip and reuses
   `montage.collect_clips` to gather a folder. Branding's "nothing configured" `SystemExit` is caught
@@ -74,13 +90,14 @@ key. The deterministic FFmpeg pipeline (Phases 0–4, 6, 7) is now end-to-end.
 - Wrote the doc set (this file, CLAUDE.md, architecture.md, roadmap.md, ADRs 0001–0006).
 
 ## Next concrete step
-Build **Phase 5 (discovery)** — the only remaining stage and the first LLM one: generate an English
-title + tags + description per video and a thumbnail (a frame + bold text). Introduces the
-config-driven LLM model + key (ADR 0001 keeps the LLM separate from the deterministic FFmpeg work).
-**Needs the owner to provide an LLM API key + provider/model choice** before it can be verified
-end-to-end (like Phase 3 needs real assets). Once built, fold it into `pipeline.py` so the batch
-emits metadata per clip too. The thumbnail's frame extraction is deterministic (FFmpeg); only the
-text/title is the LLM's job.
+Part 1 (MVP) is done. Pick the first **Part 2** rock. Strongest candidates, in rough value order:
+1. **Real channel assets** — pick a brand name, then design `assets/intro.mp4` / `outro.mp4` /
+   `logo.png` so branding (Phase 3, built+verified) actually runs.
+2. **Content understanding** — Whisper announcer detection (Pentakill/Ace/…) for auto-highlights +
+   auto-tags, then a vision LLM on sampled frames to sharpen metadata/thumbnails (ADR 0006).
+3. **Upload automation** — YouTube API upload/scheduling (owner uploads manually for now).
+Also worth a quick pass: confirm metadata feel on a real batch in `input/hype/` once clips are
+dropped in (so far Phase 5 verified on a single master).
 
 ## Open questions
 - **Channel name / brand** — none yet; using working codename **LoL Editor**. Needed before
@@ -109,12 +126,14 @@ text/title is the LLM's job.
 - **ADR 0007** — Deterministic per-clip track selection (md5-of-name) within a pool; re-runnable.
 - **ADR 0008** — Branding via the concat filter + overlay (re-encode, normalize inputs), not copy.
 - **ADR 0009** — Montage lays one ducked music bed (picked by preset) for consistent audio.
+- **ADR 0010** — Discovery via stdlib `urllib` LLM client; preset-driven metadata (no transcript
+  yet); thumbnail = deterministic FFmpeg frame + LLM overlay text.
 
 ### Phase → ADR map
 - Phase 0–1 (setup / core edit): ADR 0001
 - Phase 2 (presets / music): ADR 0004, 0006, 0007
 - Phase 3 (branding): ADR 0002, 0008
 - Phase 4 (Shorts): ADR 0002, 0005
-- Phase 5 (discovery): ADR 0003
+- Phase 5 (discovery): ADR 0001, 0003, 0010
 - Phase 6–7 (montage / batch): ADR 0002, 0009
 - Part 2 (full-game / AI understanding): ADR 0006
