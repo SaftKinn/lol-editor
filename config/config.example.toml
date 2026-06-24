@@ -7,6 +7,34 @@ music_dir = "music"     # royalty-free music tracks
 output_dir = "output"   # finished videos
 assets_dir = "assets"   # optional intro.mp4 / outro.mp4 / logo.png
 
+[presets]
+# A preset = an input sub-folder + a matching music pool. Drop a clip in
+# input/<preset>/ and it is scored from music/<preset>/ automatically. List the
+# preset names you use. A clip placed directly in input/ (no sub-folder) draws
+# from the top-level music/ folder. Track choice within a pool is deterministic
+# per clip (re-runnable), so the same clip always gets the same track.
+names = ["hype", "funny"]
+
+[batch]
+# Stage 6: process every clip in a preset folder in one run (the daily-volume engine).
+# Each clip -> a 16:9 master (edit, + branding if assets exist) and optionally a Short.
+make_shorts = true     # also cut a 9:16 Short from each master
+montage = false        # after processing, also stitch the folder's clips into one montage
+
+[montage]
+# Stage 4: stitch several clips into one long-form video (the higher-CPM format).
+# music_bed = lay ONE royalty-free track (picked by the clips' preset pool) under
+# the whole montage, ducked + normalized like the core edit, so the audio stays
+# consistent across cuts. false = keep each clip's own audio untouched.
+music_bed = true
+
+[shorts]
+# Stage 3: reframe a 16:9 edit to a 9:16 vertical Short with a blurred-background
+# fit — the full game frame stays visible (HUD/minimap never cropped, ADR 0005),
+# with the top/bottom filled by a blurred, enlarged copy of the same frame.
+resolution = "1080x1920"   # 9:16 target, "width x height"
+blur = 20                  # background blur strength (gblur sigma); higher = softer
+
 [audio]
 # Background music level under the gameplay (0..1). 0.15-0.20 sits the music
 # clearly behind the game audio.
@@ -26,7 +54,15 @@ fps = 0                 # 0 = keep source; e.g. 60
 crf = 18                # quality if re-encoding (lower = better; 18 ≈ visually lossless)
 preset = "medium"       # x264 speed/quality tradeoff
 
-[intro_outro]
-# Optional. File names are looked up in assets_dir. Leave "" to skip.
-intro = ""              # e.g. "intro.mp4"
-outro = ""              # e.g. "outro.mp4"
+[branding]
+# Stage 2: prepend an intro, append an outro, overlay a corner logo throughout.
+# All optional and config-driven — file names are looked up in assets_dir; leave
+# "" to skip that piece. Branding re-encodes (concat + overlay), using the [video]
+# encoder settings below.
+intro = ""              # e.g. "intro.mp4"  (prepended)
+outro = ""              # e.g. "outro.mp4"  (appended)
+logo = ""               # e.g. "logo.png"   (overlaid the whole time; "" = no logo)
+logo_corner = "top-right"   # top-left | top-right | bottom-left | bottom-right
+logo_margin = 24        # pixels from the frame edges
+logo_width = 160        # logo is scaled to this width in px (height keeps aspect)
+logo_opacity = 1.0      # 0..1 (1 = solid, lower = more transparent watermark)

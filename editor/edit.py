@@ -22,6 +22,7 @@ from pathlib import Path
 
 from editor.config import ROOT, load_config
 from editor.ffmpeg import run
+from editor.presets import choose_music
 
 
 def _resolve(given: str, default_dir: Path) -> Path:
@@ -35,37 +36,56 @@ def _resolve(given: str, default_dir: Path) -> Path:
     raise SystemExit(f"File not found: {given} (looked in {default_dir} too)")
 
 
-def build_audio_filter(music_volume: float, duck: bool, target_loudness: float) -> str:
-    """FFmpeg filter_complex that mixes gameplay (input 0) + music (input 1) -> [aout]."""
+def build_audio_filter(
+    music_volume: float,
+    duck: bool,
+    target_loudness: float,
+    game: str = "[0:a]",
+    music: str = "[1:a]",
+    out: str = "[aout]",
+) -> str:
+    """FFmpeg filter_complex mixing a gameplay audio source + a music source -> out.
+
+    `game` / `music` / `out` are the filtergraph labels to read from / write to. The
+    defaults wire it for the core edit (gameplay = input 0, music = input 1). The
+    montage stage passes its own labels to reuse the exact same ducking + normalize.
+    """
     # Everything resampled to 48 kHz so the filters line up cleanly.
     if duck:
         # Split gameplay: one copy feeds the mix, one is the sidechain key that
         # tells the compressor when to duck the music.
         return (
-            "[0:a]aresample=48000,asplit=2[ga][gkey];"
-            f"[1:a]aresample=48000,volume={music_volume}[bg];"
+            f"{game}aresample=48000,asplit=2[ga][gkey];"
+            f"{music}aresample=48000,volume={music_volume}[bg];"
             "[bg][gkey]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[bgduck];"
             "[ga][bgduck]amix=inputs=2:duration=first:normalize=0[mix];"
             # loudnorm resamples internally and can emit an odd rate, so force 48 kHz back.
-            f"[mix]loudnorm=I={target_loudness}:TP=-1.5:LRA=11,aresample=48000[aout]"
+            f"[mix]loudnorm=I={target_loudness}:TP=-1.5:LRA=11,aresample=48000{out}"
         )
     return (
-        "[0:a]aresample=48000[ga];"
-        f"[1:a]aresample=48000,volume={music_volume}[bg];"
+        f"{game}aresample=48000[ga];"
+        f"{music}aresample=48000,volume={music_volume}[bg];"
         "[ga][bg]amix=inputs=2:duration=first:normalize=0[mix];"
-        f"[mix]loudnorm=I={target_loudness}:TP=-1.5:LRA=11,aresample=48000[aout]"
+        f"[mix]loudnorm=I={target_loudness}:TP=-1.5:LRA=11,aresample=48000{out}"
     )
 
 
-def edit(video_arg: str, music_arg: str) -> Path:
-    """Produce one upload-ready edited video. Returns the output path."""
+def edit(video_arg: str, music_arg: str | None = None) -> Path:
+    """Produce one upload-ready edited video. Returns the output path.
+
+    If `music_arg` is omitted, the music track is chosen automatically from the
+    pool matching the clip's preset (its input sub-folder) — see editor/presets.py.
+    """
     config = load_config()
     paths = config["paths"]
     audio = config["audio"]
     video_cfg = config["video"]
 
     video = _resolve(video_arg, ROOT / paths["input_dir"])
-    music = _resolve(music_arg, ROOT / paths["music_dir"])
+    if music_arg:
+        music = _resolve(music_arg, ROOT / paths["music_dir"])
+    else:
+        music = choose_music(video, config)
 
     out_dir = ROOT / paths["output_dir"]
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -116,11 +136,14 @@ def edit(video_arg: str, music_arg: str) -> Path:
 
 
 def main() -> int:
-    if len(sys.argv) < 3:
-        print("Usage: python -m editor.edit <gameplay-video> <music-track>")
-        print("  e.g. python -m editor.edit input/my_game.mp4 music/my_track.mp3")
+    if len(sys.argv) < 2:
+        print("Usage: python -m editor.edit <gameplay-video> [music-track]")
+        print("  explicit music: python -m editor.edit input/my_game.mp4 music/my_track.mp3")
+        print("  auto by preset: python -m editor.edit input/hype/my_game.mp4")
+        print("    (music is picked from music/<preset>/ based on the input sub-folder)")
         return 1
-    out = edit(sys.argv[1], sys.argv[2])
+    music_arg = sys.argv[2] if len(sys.argv) > 2 else None
+    out = edit(sys.argv[1], music_arg)
     print(f"Wrote {out}")
     return 0
 
