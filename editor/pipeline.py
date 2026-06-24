@@ -17,7 +17,7 @@ Run it directly:
 import sys
 from pathlib import Path
 
-from editor.config import load_config
+from editor.config import ROOT, load_config
 from editor.edit import edit
 from editor.branding import brand
 from editor.shorts import shorts
@@ -25,6 +25,7 @@ from editor.montage import montage, collect_clips
 from editor.meta import generate_metadata
 from editor.presets import detect_preset
 from editor.upload import upload_video
+from editor.clip_prep import preprocess
 
 
 def process_clip(
@@ -37,7 +38,13 @@ def process_clip(
     out = {"clip": clip.name, "master": None, "branded": False,
            "short": None, "metadata": None, "upload_url": None}
 
-    master = edit(str(clip))          # auto-picks music by preset
+    # Apply filename instructions (trim, mute) before the main pipeline.
+    scratch = ROOT / "output" / "_prep"
+    clip, prep = preprocess(clip, scratch)
+    if prep["mute_game"]:
+        print("  (game audio muted — voices detected)")
+
+    master = edit(str(clip), mute_game=prep["mute_game"])   # auto-picks music by preset
     out["master"] = master.name
 
     # Branding raises SystemExit when no intro/outro/logo is configured — that's the

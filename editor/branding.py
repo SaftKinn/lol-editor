@@ -53,7 +53,7 @@ def _asset(name: str, assets_dir: Path) -> Path | None:
     return p
 
 
-def build_branding_filter(clips, w, h, fps, logo, logo_opts) -> tuple[str, str, str]:
+def build_branding_filter(clips, w, h, fps, logo, logo_opts, logo_enable_range=None) -> tuple[str, str, str]:
     """Build the filter_complex. Returns (graph, video_label, audio_label)."""
     parts = []
     segments = []
@@ -92,7 +92,11 @@ def build_branding_filter(clips, w, h, fps, logo, logo_opts) -> tuple[str, str, 
     chain += "[logo]"
     parts.append(chain)
     pos = _CORNERS[logo_opts["corner"]].format(M=logo_opts["margin"])
-    parts.append(f"[cv][logo]overlay={pos}[outv]")
+    if logo_enable_range:
+        s, e = logo_enable_range
+        parts.append(f"[cv][logo]overlay={pos}:enable='between(t,{s:.3f},{e:.3f})'[outv]")
+    else:
+        parts.append(f"[cv][logo]overlay={pos}[outv]")
     return ";".join(parts), "[outv]", "[ca]"
 
 
@@ -131,7 +135,11 @@ def brand(video_arg: str) -> Path:
         "corner": branding.get("logo_corner", "top-right"),
         "margin": int(branding.get("logo_margin", 24)),
     }
-    graph, vout, aout = build_branding_filter(clips, w, h, fps, logo, logo_opts)
+    # Logo only over gameplay — not intro/outro cards.
+    intro_dur = probe_duration(intro) if intro else 0.0
+    main_dur  = probe_duration(video)
+    logo_range = (intro_dur, intro_dur + main_dur) if logo else None
+    graph, vout, aout = build_branding_filter(clips, w, h, fps, logo, logo_opts, logo_range)
 
     out_dir = ROOT / paths["output_dir"]
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -4,11 +4,10 @@ Living status document. A phase is done only when its **verification gate** is m
 is recorded here.
 
 ## Current focus
-**Upload automation (Stage 7) built — setup steps required before first use.**
-`editor/upload.py` is written and wired into `pipeline.py`. The stage pushes finished clips
-to YouTube via the Data API (OAuth 2.0, resumable upload, auto Short/long detection, thumbnail).
-Default privacy is `"private"` — clips land in YouTube Studio for review before publishing.
-Next: owner installs the Google libs, sets up a Cloud project, and runs the first upload.
+**Pipeline in daily use. First batch of real clips processed and montage built.**
+Filename-instruction system live: clips renamed with trim/mute/group hints are parsed
+automatically by the pipeline. First Darius montage (3 clips, Spiel 1) finalised at 1:52.
+Next: brand the montage (intro/outro/logo), generate metadata, upload to YouTube.
 
 ## Last session (Stage 7 — Upload automation)
 - Added `editor/upload.py`: optional stage that uploads a finished clip + `_metadata.json`
@@ -28,8 +27,9 @@ Next: owner installs the Google libs, sets up a Cloud project, and runs the firs
 - Added `[youtube]` config section to `config.example.toml` (with step-by-step setup comment).
 - Added `config/youtube_client_secrets.json` + `config/youtube_credentials.json` to `.gitignore`.
 - Updated CLAUDE.md (Commands + architecture section).
-- VERIFY EVIDENCE: not yet verified — owner must complete Google Cloud setup first
-  (enable YouTube Data API v3, download OAuth 2.0 client secrets JSON).
+- VERIFY EVIDENCE: ✅ VERIFIED 2026-06-24 — first upload completed successfully.
+  Video landed in YouTube Studio (private) on ytriftcarnage@gmail.com. OAuth credentials
+  saved to config/youtube_credentials.json; subsequent uploads are silent (no browser).
 
 ## Earlier session (Part 2 — detect.py: German keywords + audio preprocessing)
 - Diagnosed why `base` Whisper finds 0 segments on all Medal clips:
@@ -185,13 +185,10 @@ Next: owner installs the Google libs, sets up a Cloud project, and runs the firs
 - Wrote the doc set (this file, CLAUDE.md, architecture.md, roadmap.md, ADRs 0001–0006).
 
 ## Next concrete step
-1. **Set up YouTube upload**: complete the one-time Google Cloud setup so `upload.py` can run:
-   - `pip install google-api-python-client google-auth-oauthlib`
-   - console.cloud.google.com → new project → enable YouTube Data API v3
-   - Credentials → OAuth 2.0 Client ID → Desktop app → download JSON →
-     save as `config/youtube_client_secrets.json`
-   - Run `python -m editor.upload output/<any_branded>.mp4` — browser opens once.
-2. **Review metadata quality**: check titles/descriptions from real pipeline runs
+1. **Brand + upload the montage**: `python -m editor.branding output/montage_final.mp4`
+   then `python -m editor.meta output/montage_final_branded.mp4` then upload.
+2. **Review the first uploaded clip** in YouTube Studio — publish manually when happy.
+3. **Review metadata quality**: check titles/descriptions from real pipeline runs
    and tune the Claude prompt in `meta.py` if the copy isn't on-brand enough.
 3. **detect.py + highlights.py (deferred)**: test with a full-game OBS recording
    when the owner starts recording full games.

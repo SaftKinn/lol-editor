@@ -43,6 +43,7 @@ def build_audio_filter(
     game: str = "[0:a]",
     music: str = "[1:a]",
     out: str = "[aout]",
+    mute_game: bool = False,
 ) -> str:
     """FFmpeg filter_complex mixing a gameplay audio source + a music source -> out.
 
@@ -51,6 +52,11 @@ def build_audio_filter(
     montage stage passes its own labels to reuse the exact same ducking + normalize.
     """
     # Everything resampled to 48 kHz so the filters line up cleanly.
+    if mute_game:
+        return (
+            f"{music}aresample=48000,volume={music_volume}[bg];"
+            f"[bg]loudnorm=I={target_loudness}:TP=-1.5:LRA=11,aresample=48000{out}"
+        )
     if duck:
         # Split gameplay: one copy feeds the mix, one is the sidechain key that
         # tells the compressor when to duck the music.
@@ -70,7 +76,7 @@ def build_audio_filter(
     )
 
 
-def edit(video_arg: str, music_arg: str | None = None) -> Path:
+def edit(video_arg: str, music_arg: str | None = None, mute_game: bool = False) -> Path:
     """Produce one upload-ready edited video. Returns the output path.
 
     If `music_arg` is omitted, the music track is chosen automatically from the
@@ -104,7 +110,8 @@ def edit(video_arg: str, music_arg: str | None = None) -> Path:
     reencode = bool(vf)
 
     audio_graph = build_audio_filter(
-        float(audio["music_volume"]), bool(audio["duck_music"]), float(audio["target_loudness"])
+        float(audio["music_volume"]), bool(audio["duck_music"]), float(audio["target_loudness"]),
+        mute_game=mute_game,
     )
     video_graph = f"[0:v]{','.join(vf)}[v];" if vf else ""
     filtergraph = video_graph + audio_graph

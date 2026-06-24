@@ -101,15 +101,20 @@ def build_montage_filter(clips, w, h, fps, audio_cfg, with_music) -> tuple[str, 
 
 
 def _pick_bed(clips: list[Path], config: dict, out_stem: str) -> Path | None:
-    """Pick one music bed from the clips' preset pool; None if none available."""
-    # choose_music keys off the file name, so use the output name for a stable pick
-    # while detecting the preset from the first clip's folder.
-    probe = clips[0].with_name(out_stem + clips[0].suffix)
-    try:
-        return choose_music(probe, config)
-    except SystemExit as e:
-        print(f"  ! {e}  -> montage will keep each clip's own audio.")
-        return None
+    """Pick one music bed from the clips' preset pool; None if none available.
+
+    Tries each clip in order until one has a recognised preset (e.g. a clip from
+    input/hype/ gives the hype pool even when other clips are in output/_prep/).
+    """
+    for clip in clips:
+        probe = clip.with_name(out_stem + clip.suffix)
+        try:
+            music = choose_music(probe, config)
+            return music
+        except SystemExit:
+            continue
+    print("  ! no music preset found -> montage will keep each clip's own audio.")
+    return None
 
 
 def montage(args: list[str]) -> Path:
