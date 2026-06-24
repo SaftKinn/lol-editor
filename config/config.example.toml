@@ -103,7 +103,7 @@ make_logo_placeholder = true   # generate a text logo.png until you drop in a re
 # python -m editor.music_fetch hype      # fetch for one preset
 api_key_env       = "FREESOUND_API_KEY"  # env var holding your key
 env_file          = ""                   # optional path to a .env file (KEY=VALUE)
-license           = "Creative Commons 0" # safest for monetization; "Attribution" = bigger pool
+license           = "Attribution"        # CC-BY: credit the artist in the video description
 min_duration      = 60    # skip tracks shorter than this (seconds)
 max_duration      = 360   # skip tracks longer than this (seconds)
 tracks_per_preset = 5     # how many tracks to download per preset
@@ -111,8 +111,8 @@ tracks_per_preset = 5     # how many tracks to download per preset
 [music_fetch.queries]
 # Search terms per preset. Be specific — Freesound is a sound-effects library,
 # so "epic orchestral gaming" finds music better than just "music".
-hype   = "epic aggressive gaming electronic"
-funny  = "quirky playful comedy upbeat"
+hype   = "epic gaming"     # 58+ Treffer; alternatives: "action music", "epic music"
+funny  = "comedy music"   # alternatives: "quirky music", "funny music"
 
 [detect]
 # Stage (optional): Whisper-based LoL announcer detection for highlight timestamps.

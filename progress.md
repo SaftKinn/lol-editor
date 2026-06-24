@@ -4,15 +4,31 @@ Living status document. A phase is done only when its **verification gate** is m
 is recorded here.
 
 ## Current focus
-**Part 1 complete (phases 0–7); Part 2 — rock #2 in progress: content understanding.**
-`editor/detect.py` (ADR 0012) added — Whisper-based LoL announcer detection. Run it on a raw
-clip before edit.py; it writes `output/<name>_moments.json` with timestamps + cut windows for
-each detected highlight moment (Pentakill, Ace, Triple Kill, etc.). Uses `faster-whisper` as an
-optional soft dependency (the core pipeline is unaffected). **Not yet verified** — needs a real
-clip + `pip install faster-whisper`. Remaining Part 2 rocks: highlights extractor (cut windows
-from _moments.json → clips), upload automation, full-game support.
+**Part 1 complete (phases 0–7); Part 2 — music automation + highlight pipeline done.**
+`editor/music_fetch.py` fetches royalty-free CC-BY music from Freesound automatically into
+preset pools (`music/hype/`, `music/funny/`). `editor/highlights.py` cuts moment windows from
+detect.py's sidecar. Both verified end-to-end. Project is on GitHub (github.com/SaftKinn/lol-editor).
+Remaining Part 2 rocks: verify detect.py on a real clip, upload automation, full-game support.
 
-## Last session (Part 2 — Content understanding: Whisper announcer detection)
+## Last session (Part 2 — Music automation: Freesound integration + highlights extractor)
+- Added `editor/music_fetch.py`: fetches royalty-free CC-BY music from Freesound.org API into
+  preset pools. Searches by config-driven keywords (`[music_fetch.queries]`), filters by license
+  + duration, downloads `preview-hq-mp3` into `music/<preset>/`. Re-runnable (skips existing
+  tracks). No new deps — stdlib `urllib` only. Requires free Freesound API key
+  (`FREESOUND_API_KEY` env var or `env_file` in config).
+- Added `[music_fetch]` section to `config.example.toml`. Default license `"Attribution"` (CC-BY)
+  — CC0 pool on Freesound nearly empty; CC-BY fine for monetization with artist credit in description.
+  Queries simplified after testing (`"epic gaming"` → 58 results, vs. complex query → 0).
+- Added `editor/highlights.py`: reads `_moments.json` from detect.py, cuts one lossless MP4 per
+  moment (`-c copy`, keyframe-aligned). Output: `output/<stem>_highlights/` → ready for pipeline.py.
+- Fixed Artlist assumption in CLAUDE.md + memory (owner has no Artlist subscription; using
+  YouTube Audio Library and/or Freesound instead).
+- Published project to GitHub: github.com/SaftKinn/lol-editor (used for Freesound API application).
+- VERIFY EVIDENCE (music_fetch): `python -m editor.music_fetch hype` → 5 tracks in `music/hype/`;
+  `python -m editor.music_fetch funny` → 4 tracks in `music/funny/`. Key from freesound.org/apiv2/apply/.
+- VERIFY EVIDENCE (highlights): import OK; full run requires a real `_moments.json`.
+
+## Earlier session (Part 2 — Content understanding: Whisper announcer detection)
 - Added `editor/detect.py`: optional Whisper stage (ADR 0012). Soft-imports `faster-whisper`
   (try/except — pipeline unaffected if not installed). Extracts game audio via FFmpeg (stream 0,
   mono 16 kHz WAV), transcribes with `WhisperModel`, matches against built-in LoL keyword dict
