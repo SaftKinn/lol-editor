@@ -96,6 +96,42 @@ intro_seconds = 2.0        # keep the intro SHORT — long intros lose Shorts vi
 outro_seconds = 5.0        # long enough to read the call-to-action
 make_logo_placeholder = true   # generate a text logo.png until you drop in a real one
 
+[music_fetch]
+# Stage (optional): download royalty-free music from Freesound.org into preset pools.
+# Get a FREE API key at freesound.org/apiv2/apply/ — takes 2 minutes, no credit card.
+# python -m editor.music_fetch           # fetch for all presets
+# python -m editor.music_fetch hype      # fetch for one preset
+api_key_env       = "FREESOUND_API_KEY"  # env var holding your key
+env_file          = ""                   # optional path to a .env file (KEY=VALUE)
+license           = "Creative Commons 0" # safest for monetization; "Attribution" = bigger pool
+min_duration      = 60    # skip tracks shorter than this (seconds)
+max_duration      = 360   # skip tracks longer than this (seconds)
+tracks_per_preset = 5     # how many tracks to download per preset
+
+[music_fetch.queries]
+# Search terms per preset. Be specific — Freesound is a sound-effects library,
+# so "epic orchestral gaming" finds music better than just "music".
+hype   = "epic aggressive gaming electronic"
+funny  = "quirky playful comedy upbeat"
+
+[detect]
+# Stage (optional): Whisper-based LoL announcer detection for highlight timestamps.
+# Run this on raw clips BEFORE edit.py — game audio is cleanest before music is mixed in.
+# Writes output/<name>_moments.json with timestamps + cut windows for each detected moment.
+#
+# Requires one-time install (not needed for the rest of the pipeline):
+#     pip install faster-whisper
+#
+# python -m editor.detect input/my_game.mp4
+model  = "base"   # Whisper model: tiny | base | small | medium | large
+                  # "base" is ~74 MB and fast; accuracy is plenty for fixed LoL phrases.
+device = "cpu"    # "cpu" (safe default) or "cuda" (GPU — faster if you have an NVIDIA card)
+window_before = 10   # seconds to include BEFORE the detected moment in the cut window
+window_after  = 5    # seconds to include AFTER
+# Extra keywords to detect (lower-case). Built-in: double/triple/quadra/penta kill, ace,
+# first blood, legendary, godlike, unstoppable, dominating, shutdown, baron/dragon slain.
+keywords = []
+
 [branding]
 # Stage 2: prepend an intro, append an outro, overlay a corner logo throughout.
 # All optional and config-driven — file names are looked up in assets_dir; leave

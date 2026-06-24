@@ -4,14 +4,29 @@ Living status document. A phase is done only when its **verification gate** is m
 is recorded here.
 
 ## Current focus
-**Part 1 complete (phases 0–7); Part 2 started — first rock done: brand assets.** The channel
-now has a name — **Rift Carnage** (ADR 0011) — and `editor/assets.py` generates `intro.mp4` /
-`outro.mp4` / a placeholder `logo.png`, so the branding stage (Phase 3) is finally runnable
-end-to-end with real assets. Chosen approach is **Hybrid**: the owner will drop in a real logo
-later (the brand's face), code automates the repetitive cards around it. Remaining Part 2 rocks:
-content-understanding (Whisper), upload automation, full-game support.
+**Part 1 complete (phases 0–7); Part 2 — rock #2 in progress: content understanding.**
+`editor/detect.py` (ADR 0012) added — Whisper-based LoL announcer detection. Run it on a raw
+clip before edit.py; it writes `output/<name>_moments.json` with timestamps + cut windows for
+each detected highlight moment (Pentakill, Ace, Triple Kill, etc.). Uses `faster-whisper` as an
+optional soft dependency (the core pipeline is unaffected). **Not yet verified** — needs a real
+clip + `pip install faster-whisper`. Remaining Part 2 rocks: highlights extractor (cut windows
+from _moments.json → clips), upload automation, full-game support.
 
-## Last session (Part 2 — Brand assets: name + generator)
+## Last session (Part 2 — Content understanding: Whisper announcer detection)
+- Added `editor/detect.py`: optional Whisper stage (ADR 0012). Soft-imports `faster-whisper`
+  (try/except — pipeline unaffected if not installed). Extracts game audio via FFmpeg (stream 0,
+  mono 16 kHz WAV), transcribes with `WhisperModel`, matches against built-in LoL keyword dict
+  (first blood, double/triple/quadra/penta kill, ace, legendary, godlike, unstoppable, dominating,
+  shutdown, baron/dragon slain, inhibitor). Dedupes near-same-second hits, writes
+  `output/<name>_moments.json` with detected time + label + pre-computed window (10s before /
+  5s after, configurable). Config: `[detect]` in `config.example.toml` (model, device, windows,
+  extra keywords). Stage runs on **raw clips** before edit.py so music hasn't covered the voice.
+- Added ADR 0012: Whisper as optional soft dep. Documents alternatives (CLI/API/loudness peaks)
+  and why each was rejected; defines `_moments.json` as the interface for a future highlights stage.
+- Updated CLAUDE.md Commands + How the code works sections.
+- VERIFY EVIDENCE: not yet verified — owner needs `pip install faster-whisper` first.
+
+## Earlier session (Part 2 — Brand assets: name + generator)
 - Owner picked the channel name **Rift Carnage** (general LoL highlights, not Darius-only, since
   ARAM is all-random / multi-champ) and the **Hybrid** asset approach (owner sources a real logo,
   code automates intro/outro). Saved as a `channel-name` memory + ADR 0011.
@@ -108,16 +123,15 @@ content-understanding (Whisper), upload automation, full-game support.
 - Wrote the doc set (this file, CLAUDE.md, architecture.md, roadmap.md, ADRs 0001–0006).
 
 ## Next concrete step
-Brand assets exist now (rock #1 done). Owner's half of the Hybrid is still open: **drop a real
-`logo.png` into `assets/` and re-run `python -m editor.assets`** to rebuild the cards around it.
-Then pick the next Part 2 rock:
-1. **Content understanding** — Whisper announcer detection (Pentakill/Ace/…) for auto-highlights +
-   auto-tags, then a vision LLM on sampled frames to sharpen metadata/thumbnails (ADR 0006). Note:
-   Whisper breaks the zero-dependency rule — decide how to handle that (separate optional stage?).
-2. **Upload automation** — YouTube API upload/scheduling (owner uploads manually for now).
-3. **Full-game support** — long-form from full recordings, not just Medal clips.
-Also worth a quick pass: confirm metadata feel on a real batch in `input/hype/` once clips are
-dropped in (so far Phase 5 verified on a single master).
+1. **Verify detect.py**: run `pip install faster-whisper` then
+   `python -m editor.detect input/hype/my_game.mp4` on a real Medal clip.
+   Confirm `_moments.json` is written and timestamps look right. Record proof here.
+2. **Highlights extractor** (`editor/highlights.py`): reads `_moments.json`, cuts a short
+   MP4 around each window — direct input for the existing edit/brand/shorts pipeline.
+3. Owner's Hybrid half still open: drop real `logo.png` into `assets/` and re-run
+   `python -m editor.assets`.
+Also worth: confirm metadata feel on a real batch in `input/hype/` (Phase 5 verified on a
+single master only so far).
 
 ## Open questions
 - **Channel name / brand** — DECIDED: **Rift Carnage** (ADR 0011). Intro/outro + a placeholder logo
@@ -150,6 +164,8 @@ dropped in (so far Phase 5 verified on a single master).
   yet); thumbnail = deterministic FFmpeg frame + LLM overlay text.
 - **ADR 0011** — Channel name "Rift Carnage"; Hybrid brand assets (owner sources real logo, code
   generates intro/outro cards around it via `editor/assets.py`).
+- **ADR 0012** — Whisper (`faster-whisper`) as optional soft dep for detect.py; raw-clip audio
+  extraction; `_moments.json` sidecar as interface for a future highlights stage.
 
 ### Phase → ADR map
 - Phase 0–1 (setup / core edit): ADR 0001

@@ -47,8 +47,9 @@ Trigger words from the owner: `wrap up` or `update progress` = do the end-of-ses
   thumbnails) is **English** (the channel targets the global market — ADR 0003).
 - **Config-driven, never hardcoded.** Paths, music pools, resolution, fps, encoder, preset
   settings all live in a config file. Never hardcode a path.
-- **Royalty-free music only.** Use Artlist (the owner's subscription) or the YouTube Audio
-  Library. Never commit media files (videos/music) to git — only the code.
+- **Royalty-free music only.** Use the **YouTube Audio Library** (free, safe for monetized
+  YouTube) or **Pixabay Music** (CC0, no attribution required). No Artlist subscription.
+  Never commit media files (videos/music) to git — only the code.
 - **Separate deterministic work from the LLM.** Cutting, audio mixing, encoding, reframing,
   burning overlays, FFmpeg and file handling = code. Creative text (titles, tags, descriptions,
   thumbnail text) and later content classification = LLM. The LLM never sets timings or does math.
@@ -61,6 +62,8 @@ Trigger words from the owner: `wrap up` or `update progress` = do the end-of-ses
 
 Python 3.12+ (uses `tomllib`). FFmpeg + ffprobe must be on PATH. No third-party
 dependencies, no virtualenv required, no build step — run modules directly from the repo root.
+`editor/detect.py` is the one exception: it needs `pip install faster-whisper` (optional; the
+rest of the pipeline works without it).
 
 ```
 # Run the core edit (Stage 1): balance one gameplay clip against one music track.
@@ -95,6 +98,18 @@ python -m editor.meta output/my_game_edited.mp4
 
 # Batch (Stage 6): run every clip in a folder through edit -> (brand) -> Shorts -> metadata.
 python -m editor.pipeline input/hype/
+
+# Highlight detection (Part 2, optional): find LoL announcer moments (Pentakill, Ace, …)
+# in a raw clip by transcribing with Whisper. Run BEFORE edit.py (game audio is cleanest).
+# Writes output/<name>_moments.json. Needs: pip install faster-whisper (one-time).
+python -m editor.detect input/my_game.mp4
+
+# Highlight extraction (Part 2): cut one short MP4 per detected moment from a raw clip.
+# Input: sidecar JSON from detect.py, a video path, or a bare clip name.
+# Output: output/<stem>_highlights/00_pentakill.mp4, 01_ace.mp4, …
+# Clips drop straight into edit.py or pipeline.py for scoring + branding.
+python -m editor.highlights output/my_game_moments.json
+python -m editor.highlights input/my_game.mp4   # finds sidecar automatically
 
 # Sanity-check the toolchain / config
 ffmpeg -version
@@ -185,6 +200,24 @@ meant to run standalone.
   burns the LLM's short `thumbnail_text` on with `drawtext`; the LLM only writes the wording. Outputs
   flat siblings: `<name>_metadata.md`, `<name>_metadata.json`, `<name>_thumb.png`. Gotcha baked into
   `_ff_escape_path`: the Windows drive colon must be `\\:` (double backslash) for `drawtext`.
+- **`editor/detect.py`** — Part 2 optional stage (ADR 0012). Soft-imports `faster-whisper`
+  (try/except so the core pipeline never breaks if it's absent). Extracts the first audio stream
+  via FFmpeg as a mono 16 kHz WAV (the format Whisper expects), transcribes with `WhisperModel`,
+  and matches each segment's text against a built-in dict of LoL announcer keywords. Near-same-
+  second duplicates are deduped. Writes `output/<name>_moments.json` — a list of
+  `{time, label, window_start, window_end}` objects — as a cut-list sidecar for
+  `editor/highlights.py`. Config: `[detect]` (model size, device cpu/cuda, window widths, extra
+  keywords). **Run on raw clips before `edit.py`** — the game audio is cleanest before music is
+  added. Medal clips have two audio tracks; stream 0 (game audio) is extracted by default.
+
+- **`editor/highlights.py`** — Part 2 stage. Reads a `_moments.json` sidecar from `detect.py`
+  and cuts one short MP4 per detected moment using FFmpeg `-c copy` (no re-encode — fast and
+  lossless, keyframe-aligned). Input accepts the sidecar path directly, a video path, or a bare
+  clip name (sidecar is located automatically in `output/`). Locates the source clip anywhere
+  under `input/` (including preset sub-folders). Output goes to
+  `output/<stem>_highlights/00_pentakill.mp4`, `01_ace.mp4`, … Resulting clips are ready input
+  for `edit.py` (single clip) or `pipeline.py` (whole folder batch).
+
 - **`editor/pipeline.py`** — Stage 6 batch orchestrator. Adds no video logic: it imports and calls
   `edit` → `brand` → `shorts` → `meta` per clip and reuses `montage.collect_clips` to gather a folder.
   Branding's "nothing configured" `SystemExit` is caught = skip; a missing API key makes `meta`

@@ -1,101 +1,150 @@
-# LoL Editor
+# LoL Editor — Rift Carnage
 
-A small, local, code-driven editor for League of Legends gameplay videos. You drop raw
-gameplay clips and royalty-free music in, and it produces upload-ready videos for a
-YouTube channel — gameplay audio balanced against background music, optional intro/outro,
-vertical Shorts, highlight montages, and text overlays.
+A local, code-driven video editor that turns raw **League of Legends** gameplay clips into
+upload-ready videos for a monetization-focused YouTube channel.
 
-Same philosophy as the ORIGIN project: **local-first, config-driven, file-based, every
-stage re-runnable.** All editing is deterministic FFmpeg — nothing is uploaded anywhere.
+**Channel:** [Rift Carnage](https://www.youtube.com/) — LoL highlights, Darius plays, ARAM chaos.
+**Outputs:** 16:9 masters for long-form · 9:16 vertical Shorts · highlight montages.
 
-> ⚠️ **Copyright.** Only use royalty-free / licensed music (e.g. the YouTube Audio Library),
-> or your uploads will get Content-ID claims, demonetization, or strikes. LoL *gameplay*
-> itself is generally fine to upload and monetize under Riot's "Legal Jibber Jabber" policy —
-> the music is the risk, not the footage.
+Everything runs locally via **FFmpeg** — no cloud, no subscriptions, no upload until you decide.
+The only external services are:
+- **Freesound.org** (this project) — to auto-download royalty-free music into the preset pools.
+- **Claude API** (Anthropic) — to write English YouTube metadata (titles, tags, descriptions).
 
-## Folder layout
+---
+
+## How it works
+
+Raw clip → balance audio + music → brand (intro/outro + logo) → 16:9 master + 9:16 Short →
+thumbnail + metadata → owner uploads.
+
+Each step is a separate Python module, file-based and re-runnable. Any stage can run alone.
+
+---
+
+## Stages
+
+| Module | What it does |
+|---|---|
+| `editor/edit.py` | Balance game audio against a music bed (ducked, −14 LUFS) |
+| `editor/presets.py` | Route clips to the right music pool (`hype/`, `funny/`) |
+| `editor/branding.py` | Prepend intro + append outro + overlay corner logo |
+| `editor/shorts.py` | Reframe 16:9 → 9:16 with a blurred-background fit (HUD stays visible) |
+| `editor/montage.py` | Stitch several clips into one long-form video with a single music bed |
+| `editor/pipeline.py` | Batch: run every clip in a folder through all stages |
+| `editor/assets.py` | Generate intro.mp4 / outro.mp4 / logo placeholder from config |
+| `editor/meta.py` | Write English YouTube metadata + thumbnail via Claude API (LLM stage) |
+| `editor/detect.py` | Find highlight moments (Pentakill, Ace, …) via Whisper transcription |
+| `editor/highlights.py` | Cut short clips around each detected moment for the pipeline |
+| **`editor/music_fetch.py`** | **Auto-download royalty-free music from Freesound into preset pools** |
+
+---
+
+## Freesound integration (`editor/music_fetch.py`)
+
+The pipeline organizes music into **preset pools** — one folder per content type:
 
 ```
-lol-editor/
-  editor/            # the Python package — one module per editing job
-    ffmpeg.py        # tiny helpers that run ffmpeg / ffprobe
-    config.py        # reads config/config.toml
-    edit.py          # CORE: balance gameplay + music                        [BUILT]
-    presets.py       # pick music from the pool matching the clip's preset   [BUILT]
-    branding.py      # prepend intro/outro + overlay a corner logo           [BUILT]
-    shorts.py        # reframe to a 9:16 vertical Short (blurred-bg fit)     [BUILT]
-    montage.py       # stitch several clips into one long-form video        [BUILT]
-    pipeline.py      # batch: run every clip in a folder through the stages  [BUILT]
-    overlay.py       # burn text overlays (champion, score, ...)            [planned]
-  config/
-    config.example.toml   # copy to config.toml and adjust
-  input/             # drop raw gameplay videos here
-  music/             # drop royalty-free music tracks here
-  assets/            # intro.mp4, outro.mp4, logo.png (optional)
-  output/            # finished videos land here
+music/
+  hype/    ←  epic / aggressive / gaming tracks
+  funny/   ←  quirky / playful / comedy tracks
 ```
+
+`music_fetch.py` fills these pools automatically using the **Freesound API**:
+
+1. Searches by preset-specific keywords (e.g. `"epic aggressive gaming electronic"`)
+2. Filters for **CC0 license** (safe for monetized YouTube — no attribution required)
+3. Filters by duration (60–360 s — real music, not sound effects)
+4. Downloads the high-quality MP3 preview into the matching preset folder
+5. Skips tracks already on disk (re-runnable, idempotent)
+
+```bash
+python -m editor.music_fetch              # fill all preset pools
+python -m editor.music_fetch hype         # fill one pool
+```
+
+Search keywords are config-driven — no hardcoded queries:
+
+```toml
+[music_fetch.queries]
+hype   = "epic aggressive gaming electronic"
+funny  = "quirky playful comedy upbeat"
+```
+
+Once tracks are downloaded, the pipeline picks them automatically — no further interaction needed.
+
+---
 
 ## Setup
 
-1. FFmpeg must be on PATH (`ffmpeg -version`). It already is on this PC.
-2. Copy the config: `config/config.example.toml` -> `config/config.toml`, adjust if needed.
-3. Put a gameplay video in `input/` and a royalty-free track in `music/`.
+**Requirements:** Python 3.12+, FFmpeg on PATH.
 
-## Use (so far)
+```bash
+# 1. Copy the config
+copy config\config.example.toml config\config.toml
 
-Balance one gameplay video against one music track and export an upload-ready file:
+# 2. Set your Freesound API key
+set FREESOUND_API_KEY=your_key_here
 
-```
-python -m editor.edit input/my_game.mp4 music/my_track.mp3
-```
+# 3. Download music for your preset pools
+python -m editor.music_fetch
 
-Or drop the clip in a **preset** sub-folder and let the matching music pool be picked
-automatically (no music argument needed):
-
-```
-python -m editor.edit input/hype/my_game.mp4     # picks a track from music/hype/
-python -m editor.edit input/funny/my_game.mp4    # picks a track from music/funny/
-```
-
-Within a pool the track is chosen deterministically per clip, so the same clip always
-gets the same music (re-runnable). Output lands in `output/`.
-
-Add branding (intro + outro + corner logo) to an edited video — set `intro` / `outro` /
-`logo` under `[branding]` in the config and drop the files in `assets/`:
-
-```
-python -m editor.branding output/my_game_edited.mp4
-```
-
-Make a 9:16 vertical Short from any edit — the full frame stays visible (HUD/minimap
-never cropped), with blurred bars top and bottom:
-
-```
-python -m editor.shorts output/my_game_edited.mp4
-```
-
-Stitch several clips into one long-form montage — pass a folder (all clips, in order)
-or an explicit list. One royalty-free track is laid under the whole thing for consistent
-audio:
-
-```
-python -m editor.montage input/hype/
-python -m editor.montage clipA.mp4 clipB.mp4 clipC.mp4
-```
-
-Process a whole folder in one go — every clip becomes a master plus a Short, with no
-per-clip handwork (the daily-volume workflow):
-
-```
+# 4. Drop a raw clip into input/hype/ and run the full pipeline
 python -m editor.pipeline input/hype/
 ```
 
-Metadata (titles/tags/description/thumbnail, the LLM stage) is built next.
+No virtualenv, no third-party dependencies (the core pipeline is stdlib + FFmpeg only).
+`editor/detect.py` is the one exception: `pip install faster-whisper` to enable it.
 
-## What the code does vs. what needs you
+---
 
-- **Code does** (deterministic): trimming, concatenating, mixing + balancing audio,
-  looping/ducking music, scaling to 9:16, burning text, encoding upload-ready files.
-- **Needs you** (creative): *which* moments are highlights. The tool can't watch the
-  footage — for montages you give timestamp ranges (or it falls back to picking the
-  loudest moments as a rough proxy for action).
+## Commands
+
+```bash
+# Core edit: balance one clip against one music track
+python -m editor.edit input/my_game.mp4 music/my_track.mp3
+
+# Auto music by preset folder
+python -m editor.edit input/hype/my_game.mp4
+
+# Brand (intro + outro + logo)
+python -m editor.branding output/my_game_edited.mp4
+
+# Vertical Short (9:16, blurred background)
+python -m editor.shorts output/my_game_edited.mp4
+
+# Montage from a folder
+python -m editor.montage input/hype/
+
+# Full batch pipeline
+python -m editor.pipeline input/hype/
+
+# Generate brand assets (intro.mp4 / outro.mp4 / logo placeholder)
+python -m editor.assets
+
+# Write YouTube metadata + thumbnail (needs ANTHROPIC_API_KEY)
+python -m editor.meta output/my_game_edited.mp4
+
+# Detect highlight moments via Whisper (needs: pip install faster-whisper)
+python -m editor.detect input/my_game.mp4
+
+# Cut highlight clips from detected moments
+python -m editor.highlights output/my_game_moments.json
+
+# Download royalty-free music from Freesound (needs FREESOUND_API_KEY)
+python -m editor.music_fetch
+```
+
+---
+
+## Config
+
+All paths, music settings, and API keys are in `config/config.toml` (copy from
+`config/config.example.toml`). Nothing is hardcoded. API keys stay out of git via
+environment variables.
+
+---
+
+## License
+
+Code: MIT. Media files (clips, music, renders) are excluded from git entirely — they stay local.
