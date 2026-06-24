@@ -110,6 +110,16 @@ python -m editor.upload output/my_game_branded_short.mp4  # Short
 # Set make_upload = true in [batch] to also upload at the end of the batch.
 python -m editor.pipeline input/hype/
 
+# Death-screen detection: analyse frame brightness to find "you are dead" segments
+# (the dimmed wait screen while respawning). No pip install — FFmpeg only.
+# Writes output/<name>_deathsegs.json with time ranges.
+python -m editor.deathtime input/my_game.mp4
+
+# Audio-energy highlight detection: finds loud action moments (fights, kill sounds,
+# announcer) via ebur128 Momentary Loudness. No ML needed — FFmpeg only.
+# Output uses the same _moments.json format as detect.py → highlights.py can read it.
+python -m editor.voice input/my_game.mp4
+
 # Highlight detection (Part 2, optional): find LoL announcer moments (Pentakill, Ace, …)
 # in a raw clip by transcribing with Whisper. Run BEFORE edit.py (game audio is cleanest).
 # Writes output/<name>_moments.json. Needs: pip install faster-whisper (one-time).
@@ -220,6 +230,25 @@ meant to run standalone.
   `editor/highlights.py`. Config: `[detect]` (model size, device cpu/cuda, window widths, extra
   keywords). **Run on raw clips before `edit.py`** — the game audio is cleanest before music is
   added. Medal clips have two audio tracks; stream 0 (game audio) is extracted by default.
+
+- **`editor/deathtime.py`** — Optional analysis stage. Samples the video at 2 fps using
+  FFmpeg's `signalstats` filter, which writes `YAVG` (mean luma, 0–255) to stderr per frame.
+  Computes a brightness baseline as the **75th-percentile YAVG** of all samples (robust against
+  brief dark scenes or intros). Frames more than `dark_threshold` (default 80%) below that
+  baseline are flagged as "dark"; nearby dark timestamps are merged into segments and short
+  blips (< `min_duration`, default 5 s) are discarded so cinematics don't count as deaths.
+  Output: `output/<name>_deathsegs.json` with `[{start, end, duration_s}]`. No new deps.
+  Config: `[deathtime]`. Note: Medal clips are already cut to the action — run on full-game
+  recordings where death waits last 10–40 s.
+
+- **`editor/voice.py`** — Optional analysis stage. Measures **Momentary Loudness** (100 ms
+  window, LUFS) every 100 ms via FFmpeg's `ebur128` filter. LoL fights, kill sounds, and the
+  in-game announcer produce sustained peaks at −15 to −10 LUFS; idle gameplay hovers around
+  −30 to −40 LUFS. Timestamps above `threshold_lufs` (default −18) are merged into highlight
+  windows. Output is the **same `_moments.json` format** as `detect.py` so `highlights.py` can
+  consume it without changes. Label is `"audio_peak"` (no speech recognition — energy only).
+  Config: `[voice]` (threshold_lufs, min_duration, merge_gap, window_before, window_after,
+  audio_stream). No new deps. Use as a fast alternative to detect.py when Whisper is overkill.
 
 - **`editor/highlights.py`** — Part 2 stage. Reads a `_moments.json` sidecar from `detect.py`
   and cuts one short MP4 per detected moment using FFmpeg `-c copy` (no re-encode — fast and

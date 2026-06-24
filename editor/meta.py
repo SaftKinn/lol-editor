@@ -232,30 +232,28 @@ def make_thumbnail(video: Path, text: str, config: dict) -> Path:
     thumb = config.get("thumbnail", {})
     out = video.with_name(f"{video.stem}_thumb.png")
 
-    # Pick the still position deterministically (a fraction of the clip's length).
     fraction = max(0.0, min(0.99, float(thumb.get("frame_at", 0.5))))
     timestamp = fraction * probe_duration(video)
 
-    font = _ff_escape_path(Path(str(thumb.get("font", "C:/Windows/Fonts/arialbd.ttf"))))
-    font_size = int(thumb.get("font_size", 96))
-    font_color = str(thumb.get("font_color", "white"))
-    box_color = str(thumb.get("box_color", "black@0.5"))
+    font = _ff_escape_path(Path(str(thumb.get("font", "C:/Windows/Fonts/impact.ttf"))))
+    font_size = int(thumb.get("font_size", 120))
+    font_color = str(thumb.get("font_color", "#FFE000"))   # YouTube-gaming yellow
 
-    # The overlay text goes through a temp file (textfile=) with expansion disabled, so
-    # punctuation in the wording can't be misread as FFmpeg filter syntax.
+    # Gaming-thumbnail style: Impact font, bright yellow, very thick black stroke.
+    # No box, no shadow — the thick border alone gives full readability on any background.
     tmp = tempfile.NamedTemporaryFile(
         "w", suffix=".txt", dir=str(out.parent), delete=False, encoding="utf-8"
     )
     try:
         tmp.write(text)
         tmp.close()
+        tf = _ff_escape_path(Path(tmp.name))
         filtergraph = (
             "scale=1280:720,"
-            f"drawtext=fontfile={font}:textfile={_ff_escape_path(Path(tmp.name))}:"
-            f"expansion=none:fontsize={font_size}:fontcolor={font_color}:"
-            "borderw=4:bordercolor=black:"
-            f"box=1:boxcolor={box_color}:boxborderw=24:"
-            "x=(w-text_w)/2:y=h-text_h-72"
+            f"drawtext=fontfile={font}:textfile={tf}:expansion=none:"
+            f"fontsize={font_size}:fontcolor={font_color}:"
+            "borderw=16:bordercolor=black:"
+            "x=(w-text_w)/2:y=h-text_h-20"
         )
         run([
             "-ss", f"{timestamp:.3f}", "-i", str(video),

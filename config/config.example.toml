@@ -96,6 +96,7 @@ font = "C:/Windows/Fonts/impact.ttf"   # display font for the big channel name
 intro_seconds = 2.0        # keep the intro SHORT — long intros lose Shorts viewers fast
 outro_seconds = 5.0        # long enough to read the call-to-action
 make_logo_placeholder = true   # generate a text logo.png until you drop in a real one
+logo_in_outro = true           # false = hide the logo from the outro card (clean look without placeholder)
 
 [music_fetch]
 # Stage (optional): download royalty-free music from Freesound.org into preset pools.
@@ -151,6 +152,36 @@ logo_corner = "top-right"   # top-left | top-right | bottom-left | bottom-right
 logo_margin = 24        # pixels from the frame edges
 logo_width = 160        # logo is scaled to this width in px (height keeps aspect)
 logo_opacity = 1.0      # 0..1 (1 = solid, lower = more transparent watermark)
+
+[deathtime]
+# Stage (optional): detect "death screen" moments by analysing frame brightness.
+# In LoL, when you die the screen dims — a sustained brightness drop below the clip's
+# own baseline marks the time you are waiting to respawn.  Output: a JSON sidecar with
+# time ranges that can be manually reviewed or used to skip boring dead-time in edits.
+# No extra pip installs — uses FFmpeg only.
+#
+# python -m editor.deathtime input/my_game.mp4
+sample_fps = 2.0          # analysis framerate: 2 = one sample every 0.5 s (fast, sufficient)
+dark_threshold = 0.80     # fraction of baseline YAVG — below this = "dark frame"
+                          # (0.80 = 20% darker than the clip's own 75th-percentile brightness)
+min_duration = 5.0        # minimum seconds to count as a death (shorter = cinematic, not death)
+merge_gap = 2.0           # merge dark segments separated by less than this (seconds)
+
+[voice]
+# Stage (optional): audio-energy highlight detector — no Whisper or ML needed.
+# Measures Momentary Loudness (LUFS) via FFmpeg's ebur128 filter every 100 ms.
+# LoL fights, kill sounds, and the announcer sit far above idle gameplay: a sustained
+# peak above the threshold is treated as an action moment worth clipping.
+# Output is compatible with detect.py's _moments.json so highlights.py can use it.
+# No extra pip installs — uses FFmpeg only.
+#
+# python -m editor.voice input/my_game.mp4
+threshold_lufs = -18.0   # Momentary LUFS above this = "action" (-15 fight, -25 walk)
+min_duration = 1.0       # sustained loud seconds before counting as a moment
+merge_gap = 2.0          # merge bursts closer than this into one moment (seconds)
+window_before = 8.0      # seconds before the peak to include in the cut window
+window_after = 4.0       # seconds after the peak
+audio_stream = 0         # Medal stream: 0 = "All Audio" (game), 1 = "All PC Audio"
 
 [youtube]
 # Stage 7 (optional): upload finished clips to YouTube via the Data API.

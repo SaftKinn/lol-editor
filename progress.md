@@ -3,13 +3,41 @@
 Living status document. A phase is done only when its **verification gate** is met and the proof
 is recorded here.
 
-## Current focus
-**Pipeline in daily use. First batch of real clips processed and montage built.**
-Filename-instruction system live: clips renamed with trim/mute/group hints are parsed
-automatically by the pipeline. First Darius montage (3 clips, Spiel 1) finalised at 1:52.
-Next: brand the montage (intro/outro/logo), generate metadata, upload to YouTube.
+## Last session (Thumbnail-Upgrade + erster Upload)
+- Thumbnail-Textstil überarbeitet: Impact-Font (108px), weißer Text, 10px schwarzer Stroke,
+  Drop-Shadow-Layer (+5px versetzt) — keine Box mehr. Sieht professionell aus, bestätigt.
+- Erstes echtes Video hochgeladen: https://youtu.be/0vIX5_lciQ4 (privat, Medal-Clip
+  auf 11–38s geschnitten, ohne Outro). Custom Thumbnail noch gesperrt (braucht 1.000 Abos).
+- Todeszeitenerkenner Bug gefixt: signalstats schreibt auf stdout via metadata=print:file=-,
+  nicht stderr. Regex auf lavfi.signalstats.YAVG= und pts_time: angepasst.
 
-## Last session (Stage 7 — Upload automation)
+## Current focus
+**Two new analysis stages added: death-screen detector + audio-energy highlight finder.**
+Both work without any pip installs (pure FFmpeg). Ready to test on a real clip.
+Still pending: brand + upload the montage; review metadata quality on real batch.
+
+## Last session (Part 2 — deathtime + voice detectors)
+- Added `editor/deathtime.py`: detects "you are dead" segments by sampling frame
+  brightness (YAVG) at 2 fps via FFmpeg's `signalstats` filter. Baseline is the clip's
+  own 75th-percentile brightness (adapts to any map/lighting). Dark frames > 20% below
+  baseline and sustained for ≥ 5 s are reported as death segments. Output:
+  `output/<name>_deathsegs.json`. No new deps. Config: `[deathtime]`.
+- Added `editor/voice.py`: audio-energy highlight detector using FFmpeg's `ebur128` filter
+  (Momentary Loudness per 100 ms). Loud bursts above −18 LUFS and sustained for ≥ 1 s are
+  tagged as `audio_peak` moments. Output format is identical to detect.py's `_moments.json`
+  so `highlights.py` can consume it without changes. No Whisper / no ML needed. Config: `[voice]`.
+- Added `[deathtime]` and `[voice]` sections to `config.example.toml`.
+- Updated `CLAUDE.md` (Commands + architecture sections for both modules).
+- Bug found & fixed during testing: signalstats in this FFmpeg build writes per-frame
+  stats to **stdout** via `metadata=print:file=-` (not stderr). Fixed `_sample_brightness`
+  to capture stdout and parse `lavfi.signalstats.YAVG=` lines + `pts_time:` for timestamps.
+- VERIFY EVIDENCE: ✅ VERIFIED 2026-06-25 — full run on MedalTVLeagueofLegends20260617210213720.mp4
+  (60s, 1280x720, 60fps, Medal clip):
+  - deathtime: baseline YAVG=57.4, cutoff=45.9 → 1 segment 0–8s (dark clip start, 8s dead time)
+  - voice: 599 samples, 12 above −18 LUFS → 1 action moment at 38.95s (window 30.95–42.95s)
+  - Full pipeline also verified: edit → branding → shorts → meta all passed.
+
+## Earlier session (Stage 7 — Upload automation)
 - Added `editor/upload.py`: optional stage that uploads a finished clip + `_metadata.json`
   sidecar + `_thumb.png` to YouTube via the Data API. Soft-deps:
   `pip install google-api-python-client google-auth-oauthlib` (same pattern as detect.py).
@@ -185,7 +213,11 @@ Next: brand the montage (intro/outro/logo), generate metadata, upload to YouTube
 - Wrote the doc set (this file, CLAUDE.md, architecture.md, roadmap.md, ADRs 0001–0006).
 
 ## Next concrete step
-1. **Brand + upload the montage**: `python -m editor.branding output/montage_final.mp4`
+1. **Echter Workflow etablieren**: echte Medal-Clips in `input/hype/` legen und mit
+   `python -m editor.pipeline input/hype/` als Batch laufen lassen.
+2. **Kaufgeräusch-Erkennung verfeinern**: die 100ms-ebur128-Fenster sind zu grob für kurze
+   Sounds — evtl. kürzere Fenster oder Hochpass-Filter testen.
+3. **Brand + upload die Montage**: `python -m editor.branding output/montage_final.mp4`
    then `python -m editor.meta output/montage_final_branded.mp4` then upload.
 2. **Review the first uploaded clip** in YouTube Studio — publish manually when happy.
 3. **Review metadata quality**: check titles/descriptions from real pipeline runs
