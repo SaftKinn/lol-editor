@@ -43,6 +43,7 @@ names = ["hype", "funny"]
 # Each clip -> a 16:9 master (edit, + branding if assets exist) and optionally a Short.
 make_shorts = true     # also cut a 9:16 Short from each master
 make_metadata = true   # also write English metadata + a thumbnail (Stage 5, needs an API key)
+make_upload = false    # upload to YouTube after metadata (Stage 7 — review clips first!)
 montage = false        # after processing, also stitch the folder's clips into one montage
 
 [montage]
@@ -150,3 +151,32 @@ logo_corner = "top-right"   # top-left | top-right | bottom-left | bottom-right
 logo_margin = 24        # pixels from the frame edges
 logo_width = 160        # logo is scaled to this width in px (height keeps aspect)
 logo_opacity = 1.0      # 0..1 (1 = solid, lower = more transparent watermark)
+
+[youtube]
+# Stage 7 (optional): upload finished clips to YouTube via the Data API.
+#
+# One-time setup (takes ~5 minutes):
+#   1. Install the libraries:
+#        pip install google-api-python-client google-auth-oauthlib
+#   2. Create a Google Cloud project and enable the YouTube Data API v3:
+#        console.cloud.google.com → New project → APIs & Services →
+#        Enable APIs → search "YouTube Data API v3" → Enable
+#   3. Create OAuth credentials:
+#        APIs & Services → Credentials → Create Credentials →
+#        OAuth 2.0 Client ID → Desktop app → Download JSON
+#   4. Save the downloaded file as:  config/youtube_client_secrets.json
+#   5. Run upload.py once — a browser opens for a one-time login.
+#        Credentials are saved to credentials_file and reused automatically.
+#
+# IMPORTANT: add these to .gitignore so secrets never land in git:
+#   config/youtube_client_secrets.json
+#   config/youtube_credentials.json
+#
+# Run standalone:
+#   python -m editor.upload output/my_game_branded.mp4
+#   python -m editor.upload output/my_game_branded_short.mp4
+client_secrets    = "config/youtube_client_secrets.json"   # downloaded from Google Cloud
+credentials_file  = "config/youtube_credentials.json"      # saved after first browser login
+privacy           = "private"    # start "private" — review the clip, then publish manually
+category_id       = "20"         # 20 = Gaming  (YouTube category IDs are fixed numbers)
+default_playlist  = ""           # optional: paste a YouTube playlist ID to auto-add videos

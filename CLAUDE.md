@@ -62,8 +62,10 @@ Trigger words from the owner: `wrap up` or `update progress` = do the end-of-ses
 
 Python 3.12+ (uses `tomllib`). FFmpeg + ffprobe must be on PATH. No third-party
 dependencies, no virtualenv required, no build step — run modules directly from the repo root.
-`editor/detect.py` is the one exception: it needs `pip install faster-whisper` (optional; the
-rest of the pipeline works without it).
+Two optional stages have their own soft dependencies:
+- `editor/detect.py`: needs `pip install faster-whisper`
+- `editor/upload.py`: needs `pip install google-api-python-client google-auth-oauthlib`
+All other stages work without any pip installs.
 
 ```
 # Run the core edit (Stage 1): balance one gameplay clip against one music track.
@@ -96,7 +98,16 @@ python -m editor.montage input/hype/
 # Needs a Claude API key — set ANTHROPIC_API_KEY (or [llm].env_file in config).
 python -m editor.meta output/my_game_edited.mp4
 
+# Upload (Stage 7, optional): push a finished clip + its metadata + thumbnail to YouTube.
+# Needs: pip install google-api-python-client google-auth-oauthlib  (one-time).
+# See [youtube] in config for setup steps (Google Cloud project + OAuth credentials).
+# First run opens a browser for a one-time login; subsequent runs are silent.
+# Uploads as "private" by default — review in YouTube Studio, then publish manually.
+python -m editor.upload output/my_game_branded.mp4        # long-form
+python -m editor.upload output/my_game_branded_short.mp4  # Short
+
 # Batch (Stage 6): run every clip in a folder through edit -> (brand) -> Shorts -> metadata.
+# Set make_upload = true in [batch] to also upload at the end of the batch.
 python -m editor.pipeline input/hype/
 
 # Highlight detection (Part 2, optional): find LoL announcer moments (Pentakill, Ace, …)
@@ -219,10 +230,22 @@ meant to run standalone.
   for `edit.py` (single clip) or `pipeline.py` (whole folder batch).
 
 - **`editor/pipeline.py`** — Stage 6 batch orchestrator. Adds no video logic: it imports and calls
-  `edit` → `brand` → `shorts` → `meta` per clip and reuses `montage.collect_clips` to gather a folder.
-  Branding's "nothing configured" `SystemExit` is caught = skip; a missing API key makes `meta`
-  `SystemExit` = skip too; per-clip failures are isolated so one bad clip doesn't kill the batch.
-  `[batch]` toggles `make_shorts`, `make_metadata`, and an optional end-of-run `montage`.
+  `edit` → `brand` → `shorts` → `meta` → `upload` per clip and reuses `montage.collect_clips` to
+  gather a folder. Branding's "nothing configured" `SystemExit` is caught = skip; a missing API key
+  makes `meta` `SystemExit` = skip too; per-clip failures are isolated so one bad clip doesn't kill
+  the batch. `[batch]` toggles `make_shorts`, `make_metadata`, `make_upload` (default off — review
+  before publishing), and an optional end-of-run `montage`.
+
+- **`editor/upload.py`** — Stage 7, the upload stage. Treats `google-api-python-client` and
+  `google-auth-oauthlib` as optional soft dependencies (same pattern as `detect.py`). Loads
+  OAuth 2.0 credentials from `config/youtube_credentials.json` (runs the browser flow once when
+  it doesn't exist yet) and uploads via the YouTube Data API v3 using a resumable upload so
+  network hiccups don't require restarting from zero. Auto-detects Short vs long-form from the
+  `_short` suffix in the filename and picks `youtube_short` vs `youtube_long` from the
+  `_metadata.json` sidecar written by `meta.py`. Uploads the thumbnail from `_thumb.png` after
+  the video (silently skipped if the channel isn't verified for custom thumbnails yet). Privacy
+  defaults to `"private"` so the owner can review in YouTube Studio before publishing. Config:
+  `[youtube]` (client_secrets, credentials_file, privacy, category_id, default_playlist).
 
 Note the reuse seam: `edit.build_audio_filter(..., game, music, out)` is the single place audio
 ducking/loudness lives — call it with labels rather than reimplementing the mix in a new stage. The

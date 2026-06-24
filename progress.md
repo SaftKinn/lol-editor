@@ -4,14 +4,34 @@ Living status document. A phase is done only when its **verification gate** is m
 is recorded here.
 
 ## Current focus
-**Full pipeline verified end-to-end on real Medal clips.**
-Two real clips from `C:\Medal\Clips\League of Legends\` ran through the complete pipeline:
-edit (music ducked, −14 LUFS) → brand (intro/outro/logo) → short (1080×1920) → metadata
-(English title/tags/description + thumbnail). All stages completed, all output files correct.
-`config.toml` created pointing to the SocialMedia Projekt `.env` for the Claude API key.
-Remaining work: upload automation, full-game recording support (detect.py deferred until then).
+**Upload automation (Stage 7) built — setup steps required before first use.**
+`editor/upload.py` is written and wired into `pipeline.py`. The stage pushes finished clips
+to YouTube via the Data API (OAuth 2.0, resumable upload, auto Short/long detection, thumbnail).
+Default privacy is `"private"` — clips land in YouTube Studio for review before publishing.
+Next: owner installs the Google libs, sets up a Cloud project, and runs the first upload.
 
-## Last session (Part 2 — detect.py: German keywords + audio preprocessing)
+## Last session (Stage 7 — Upload automation)
+- Added `editor/upload.py`: optional stage that uploads a finished clip + `_metadata.json`
+  sidecar + `_thumb.png` to YouTube via the Data API. Soft-deps:
+  `pip install google-api-python-client google-auth-oauthlib` (same pattern as detect.py).
+- OAuth 2.0 flow: browser login once → credentials saved to
+  `config/youtube_credentials.json` (gitignored). Auto-refreshes on expiry.
+- Short vs long-form detected from filename suffix (`_short`) → picks `youtube_short` or
+  `youtube_long` from the `_metadata.json` sidecar. Hashtags injected into description for
+  Shorts (with `#Shorts`).
+- Resumable upload in 4 MB chunks — network hiccups don't restart from zero.
+- Thumbnail set after upload; silently skipped if channel isn't verified for custom thumbnails.
+- Optional playlist assignment via `[youtube].default_playlist`.
+- Privacy defaults to `"private"` so owner can review clips in YouTube Studio before publishing.
+- Wired into `pipeline.py`: `make_upload = false` (default off) in `[batch]`; flips on to
+  upload master + Short at end of each clip's processing.
+- Added `[youtube]` config section to `config.example.toml` (with step-by-step setup comment).
+- Added `config/youtube_client_secrets.json` + `config/youtube_credentials.json` to `.gitignore`.
+- Updated CLAUDE.md (Commands + architecture section).
+- VERIFY EVIDENCE: not yet verified — owner must complete Google Cloud setup first
+  (enable YouTube Data API v3, download OAuth 2.0 client secrets JSON).
+
+## Earlier session (Part 2 — detect.py: German keywords + audio preprocessing)
 - Diagnosed why `base` Whisper finds 0 segments on all Medal clips:
   1. LoL client was on German → English keywords didn't match.
   2. Stream 0 ("All Audio") includes Discord audio, which competes with the game announcer.
@@ -165,9 +185,12 @@ Remaining work: upload automation, full-game recording support (detect.py deferr
 - Wrote the doc set (this file, CLAUDE.md, architecture.md, roadmap.md, ADRs 0001–0006).
 
 ## Next concrete step
-1. **Upload automation**: write `editor/upload.py` (or document the manual workflow)
-   so finished clips flow from `output/` to YouTube. YouTube Data API or manual
-   upload — decide based on complexity vs. value.
+1. **Set up YouTube upload**: complete the one-time Google Cloud setup so `upload.py` can run:
+   - `pip install google-api-python-client google-auth-oauthlib`
+   - console.cloud.google.com → new project → enable YouTube Data API v3
+   - Credentials → OAuth 2.0 Client ID → Desktop app → download JSON →
+     save as `config/youtube_client_secrets.json`
+   - Run `python -m editor.upload output/<any_branded>.mp4` — browser opens once.
 2. **Review metadata quality**: check titles/descriptions from real pipeline runs
    and tune the Claude prompt in `meta.py` if the copy isn't on-brand enough.
 3. **detect.py + highlights.py (deferred)**: test with a full-game OBS recording

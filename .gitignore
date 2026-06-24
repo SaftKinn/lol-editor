@@ -6,6 +6,8 @@ venv/
 
 # Real config + secrets (only the *.example files are tracked)
 config/config.toml
+config/youtube_client_secrets.json
+config/youtube_credentials.json
 .env
 
 # Bulk media — raw clips, music, finished renders (large / often licensed)
