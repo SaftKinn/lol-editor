@@ -126,10 +126,16 @@ funny  = "comedy music"   # alternatives: "quirky music", "funny music"
 model  = "base"   # Whisper model: tiny | base | small | medium | large
                   # "base" is ~74 MB and fast; accuracy is plenty for fixed LoL phrases.
 device = "cpu"    # "cpu" (safe default) or "cuda" (GPU — faster if you have an NVIDIA card)
+language = ""     # "" = auto-detect (recommended); "en" = force English; "de" = force German
+                  # Auto-detect works for both English and German LoL clients.
+audio_stream  = 0      # Medal audio stream index: 0 = "All Audio" (game), 1 = "All PC Audio"
+speech_filter = true   # bandpass 200–4000 Hz + volume boost before Whisper — helps the
+                       # announcer stand out from LoL game sound effects
+speech_boost  = 3.0    # volume multiplier applied after the bandpass (1.0 = no boost)
 window_before = 10   # seconds to include BEFORE the detected moment in the cut window
 window_after  = 5    # seconds to include AFTER
-# Extra keywords to detect (lower-case). Built-in: double/triple/quadra/penta kill, ace,
-# first blood, legendary, godlike, unstoppable, dominating, shutdown, baron/dragon slain.
+# Extra keywords to detect (lower-case). Built-in: English + German multi-kill phrases,
+# ace, first blood / erster kill, legendary / legendär, godlike / gottgleich, etc.
 keywords = []
 
 [branding]

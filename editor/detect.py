@@ -41,8 +41,11 @@ except ImportError:
 
 
 # Built-in LoL announcer phrases → label. Lower-case; Whisper output is lowercased
-# before matching. Whisper may spell "Penta Kill" or "pentakill" — both forms listed.
+# before matching. Both English and German client phrases are included so the stage
+# works regardless of the LoL client language. Whisper may vary spelling slightly
+# (e.g. "penta kill" vs "pentakill") — common variants are listed explicitly.
 _KEYWORDS: dict[str, str] = {
+    # English
     "first blood":   "first_blood",
     "double kill":   "double_kill",
     "triple kill":   "triple_kill",
@@ -58,6 +61,18 @@ _KEYWORDS: dict[str, str] = {
     "baron slain":   "baron",
     "dragon slain":  "dragon",
     "inhibitor":     "inhibitor",
+    # German client equivalents
+    "erster kill":   "first_blood",
+    "doppelkill":    "double_kill",
+    "dreifachkill":  "triple_kill",
+    "vierfachkill":  "quadra_kill",
+    "legendär":      "legendary",
+    "gottgleich":    "godlike",
+    "unaufhaltsam":  "unstoppable",
+    "dominierend":   "dominating",
+    "abschuss":      "shutdown",
+    "baron besiegt": "baron",
+    "drache besiegt":"dragon",
 }
 
 
@@ -72,13 +87,30 @@ def _resolve(given: str, default_dir: Path) -> Path:
     raise SystemExit(f"File not found: {given} (also looked in {default_dir})")
 
 
-def _extract_wav(video: Path, wav: Path, stream_index: int = 0) -> None:
-    """Dump one audio stream to a mono 16 kHz WAV — the format Whisper expects."""
+def _extract_wav(
+    video: Path,
+    wav: Path,
+    stream_index: int = 0,
+    speech_filter: bool = True,
+    speech_boost: float = 3.0,
+) -> None:
+    """Dump one audio stream to a mono 16 kHz WAV — the format Whisper expects.
+
+    speech_filter=True applies a bandpass (200–4000 Hz) + volume boost so the
+    announcer voice stands out from LoL's loud game sound effects.
+    """
+    af_parts: list[str] = []
+    if speech_filter:
+        af_parts.append("highpass=f=200,lowpass=f=4000")
+        if speech_boost != 1.0:
+            af_parts.append(f"volume={speech_boost}")
+    af_args = ["-af", ",".join(af_parts)] if af_parts else []
     ff_run([
         "-i", str(video),
         "-map", f"0:a:{stream_index}",
         "-ac", "1",           # mono
         "-ar", "16000",       # 16 kHz
+        *af_args,
         str(wav),
     ])
 
@@ -93,6 +125,10 @@ def detect_moments(video: Path, config: dict) -> list[dict]:
     device        = str(cfg.get("device", "cpu"))
     window_before = float(cfg.get("window_before", 10))
     window_after  = float(cfg.get("window_after", 5))
+    language      = cfg.get("language", "") or None   # "" → None = Whisper auto-detect
+    audio_stream  = int(cfg.get("audio_stream", 0))
+    speech_filter = bool(cfg.get("speech_filter", True))
+    speech_boost  = float(cfg.get("speech_boost", 3.0))
     extra         = {kw.lower(): kw.lower().replace(" ", "_")
                      for kw in cfg.get("keywords", [])}
 
@@ -102,14 +138,16 @@ def detect_moments(video: Path, config: dict) -> list[dict]:
     with tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / "audio.wav"
         print("  Extracting game audio …")
-        _extract_wav(video, wav)
+        _extract_wav(video, wav, stream_index=audio_stream,
+                     speech_filter=speech_filter, speech_boost=speech_boost)
 
         compute = "float16" if device == "cuda" else "int8"
         print(f"  Loading Whisper '{model_size}' on {device} …")
         model = WhisperModel(model_size, device=device, compute_type=compute)
 
-        print("  Transcribing …")
-        segments, _ = model.transcribe(str(wav), language="en")
+        lang_display = language or "auto"
+        print(f"  Transcribing (language={lang_display}) …")
+        segments, _ = model.transcribe(str(wav), language=language)
 
         moments: list[dict] = []
         seen: set[tuple] = set()

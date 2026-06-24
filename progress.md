@@ -4,13 +4,39 @@ Living status document. A phase is done only when its **verification gate** is m
 is recorded here.
 
 ## Current focus
-**Part 1 complete (phases 0–7); Part 2 — music automation + highlight pipeline done.**
-`editor/music_fetch.py` fetches royalty-free CC-BY music from Freesound automatically into
-preset pools (`music/hype/`, `music/funny/`). `editor/highlights.py` cuts moment windows from
-detect.py's sidecar. Both verified end-to-end. Project is on GitHub (github.com/SaftKinn/lol-editor).
-Remaining Part 2 rocks: verify detect.py on a real clip, upload automation, full-game support.
+**Full pipeline verified end-to-end on real Medal clips.**
+Two real clips from `C:\Medal\Clips\League of Legends\` ran through the complete pipeline:
+edit (music ducked, −14 LUFS) → brand (intro/outro/logo) → short (1080×1920) → metadata
+(English title/tags/description + thumbnail). All stages completed, all output files correct.
+`config.toml` created pointing to the SocialMedia Projekt `.env` for the Claude API key.
+Remaining work: upload automation, full-game recording support (detect.py deferred until then).
 
-## Last session (Part 2 — Music automation: Freesound integration + highlights extractor)
+## Last session (Part 2 — detect.py: German keywords + audio preprocessing)
+- Diagnosed why `base` Whisper finds 0 segments on all Medal clips:
+  1. LoL client was on German → English keywords didn't match.
+  2. Stream 0 ("All Audio") includes Discord audio, which competes with the game announcer.
+  3. Whisper `base` can't separate the announcer voice from dense LoL game sounds without help.
+- Fix applied to `detect.py`:
+  - Added German LoL keywords to `_KEYWORDS` (doppelkill, dreifachkill, vierfachkill,
+    erster kill, legendär, gottgleich, unaufhaltsam, dominierend, abschuss, baron/drache besiegt).
+  - `language` is now configurable (`""` = auto-detect, `"de"` / `"en"` to force).
+  - Added optional audio preprocessing (`speech_filter = true`): bandpass 200–4000 Hz +
+    `speech_boost = 3.0` volume multiplier. Isolates the announcer frequency range and boosts
+    it so Whisper can hear it through the game sound effects.
+  - `audio_stream` and `speech_boost` added to `config.example.toml`.
+- Confirmed (bandpass test): Discord chat IS in stream 0 ("...at the gym." detected).
+  Stream 1 ("All PC Audio") produces 0 segments — different mix. Owner should disable
+  Discord in Medal audio settings so stream 0 contains only game audio.
+- SCOPE CLARIFICATION: detect.py is designed for FULL-GAME recordings (e.g. OBS, 20–40
+  min), NOT for Medal clips. Medal already cuts around the highlight — each Medal clip IS
+  the highlight window. For Medal clips, go directly to edit.py → branding → shorts → meta.
+  detect.py will be useful when the owner starts recording full games (planned: "full-game
+  support" in roadmap). Testing it on Medal clips is the wrong use case.
+- Whisper `small` on CUDA fails (cublas64_12.dll missing — CUDA not installed for Python).
+- VERIFY EVIDENCE (detect keyword detection): DEFERRED — test when owner has a full-game
+  recording. Discord must be off in Medal audio settings for clean game audio.
+
+## Earlier session (Part 2 — Music automation: Freesound integration + highlights extractor)
 - Added `editor/music_fetch.py`: fetches royalty-free CC-BY music from Freesound.org API into
   preset pools. Searches by config-driven keywords (`[music_fetch.queries]`), filters by license
   + duration, downloads `preview-hq-mp3` into `music/<preset>/`. Re-runnable (skips existing
@@ -139,13 +165,15 @@ Remaining Part 2 rocks: verify detect.py on a real clip, upload automation, full
 - Wrote the doc set (this file, CLAUDE.md, architecture.md, roadmap.md, ADRs 0001–0006).
 
 ## Next concrete step
-1. **Verify detect.py**: run `pip install faster-whisper` then
-   `python -m editor.detect input/hype/my_game.mp4` on a real Medal clip.
-   Confirm `_moments.json` is written and timestamps look right. Record proof here.
-2. **Highlights extractor** (`editor/highlights.py`): reads `_moments.json`, cuts a short
-   MP4 around each window — direct input for the existing edit/brand/shorts pipeline.
-3. Owner's Hybrid half still open: drop real `logo.png` into `assets/` and re-run
-   `python -m editor.assets`.
+1. **Upload automation**: write `editor/upload.py` (or document the manual workflow)
+   so finished clips flow from `output/` to YouTube. YouTube Data API or manual
+   upload — decide based on complexity vs. value.
+2. **Review metadata quality**: check titles/descriptions from real pipeline runs
+   and tune the Claude prompt in `meta.py` if the copy isn't on-brand enough.
+3. **detect.py + highlights.py (deferred)**: test with a full-game OBS recording
+   when the owner starts recording full games.
+4. Owner's Hybrid half: drop real `logo.png` into `assets/` and re-run
+   `python -m editor.assets` to rebuild intro/outro around it.
 Also worth: confirm metadata feel on a real batch in `input/hype/` (Phase 5 verified on a
 single master only so far).
 
